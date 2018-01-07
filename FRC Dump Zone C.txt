@@ -1,0 +1,37 @@
+Main WPLILIB page
+https://wpilib.screenstepslive.com/s/4485/m/13810
+
+Main Documentation page
+http://first.wpi.edu/FRC/roborio/release/docs/cpp/
+
+Note that we will probably not use any of the methods prescrbied by the WPLILIB page, but we
+look to it for inpsiration and rescourse.
+
+Ultrasonic Conversion 4.88VOlts for 5000mm
+
+Error fixes
+Eclipse fails to recognize the toolchain (FRC toolchain) and certain files needed to make robot go vroom. These fixes should those errors.
+Tweaks [Completely ]
+	Several tweaks will need to be done to Eclipse.
+	Compile errors, as in eclipse doesn't compile at all.
+		Go to ->Project->Properties->C++ Build-> Environment
+		Check to see if C:\frc\bin is in the PATH variable.
+		If not, amend current PATH.
+	Include errors, such as CANTalon.h not found.
+		Compile program.
+		Read error message, should be something akin to C:\Users\[NAME]\wpilib\cpp\current\include.
+		Go to C:\Users\[NAME]\wpilib\user\cpp\include
+		Copy all .h files and move them to C:\Users\[NAME]\wpilib\cpp\current\include.
+		Recompile and rebuild.
+	Visual Studio error.
+		[In the works].
+
+3871m/s
+2396m/s
+
+
+"On the Fly" Path based autonomous
+Color recognition
+Vision on the cube
+Precise perpidicular turns and veloctiy control, parameter based control	
+Multiple cameras?
