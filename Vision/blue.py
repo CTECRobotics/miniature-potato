@@ -4,7 +4,7 @@ import math
 from enum import Enum
 
 
-class blue(object):
+class Blue(object):
     """
     An OpenCV pipeline
     """
@@ -48,6 +48,7 @@ class blue(object):
     def process(self, source0):
         """
         Runs the pipeline and sets all outputs to new values.
+        :rtype: object
         """
         # Step HSL_Threshold0:
         self.__hsl_threshold_input = source0

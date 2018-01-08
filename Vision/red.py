@@ -3,7 +3,7 @@ import numpy
 import math
 from enum import Enum
 
-class red:
+class Red(object):
     """
     An OpenCV pipeline
     """
@@ -40,6 +40,7 @@ class red:
     def process(self, source0):
         """
         Runs the pipeline and sets all outputs to new values.
+        :rtype: object
         """
         # Step HSL_Threshold0:
         self.__hsl_threshold_0_input = source0
