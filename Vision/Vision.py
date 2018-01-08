@@ -262,33 +262,56 @@ def get_distance_from_sensor():
     return sd.getvalue("Distance_Sensor")
 def get_realsense_distance():
     # Do the things
+    """
+    """
 
 def program_1():
+    """
+    Determines what to do
+    """
     while get_distance_from_sensor() < 10 and get_realsense_distance():
         # do something
-def program_1a():
 
+def program_1a():
+    """
+    """
 def program_1b():
+    """
+    """
 
 def program_1c():
-
+    """
+    """
 def program_2():
+    """
+    Determines what to do
+    """
     while get_distance_from_sensor() < 10 and get_realsense_distance():
         # do something
 def program_2a():
-
+    """
+    """
 def program_2b():
-
+    """
+    """
 def program_2c():
-
+    """
+    """
 def program_3():
+    """
+    Determines what to do
+    """
     while get_distance_from_sensor() < 10 and get_realsense_distance():
         # do something
 def program_3a():
-
+    """
+    """
 def program_3b():
-
+    """
+    """
 def program_3c():
+    """
+    """
 while True:
     color = sd.getvalue("Alliance_Color")
     position = sd.getvalue("Auto_Mode")
