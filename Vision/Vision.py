@@ -8,6 +8,3 @@ while True:
     color = sd.getvalue("Alliance_Color")
     position = sd.getvalue("Auto_Mode")
     location = ""
-    if position is 1:
-    if position is 2:
-    if position is 3:
