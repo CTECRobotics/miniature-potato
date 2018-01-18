@@ -1,0 +1,94 @@
+Date: 17/1/18
+
+Topic: Switch statement writing
+
+Pseudocode:
+Switch_or_scale() {
+
+}
+string = LLR
+Left_right(string) {
+	parse string for L or R (put into array?)
+	foreach character c:		
+		switch(left or right 'c')
+			case...
+				switch(robot position on field)
+				case...
+					ARRAY[1] = Distance
+					ARRAY[2] = Angle
+
+					ARRAY[1] = Distance
+					ARRAY[2] = Angle
+
+					ARRAY[1] = Distance
+					ARRAY[2] = Angle
+				case...
+			case...
+				switch(robot position on field)
+				case...
+				case...
+}
+
+
+
+Auto_Init() {
+	switch(switch or scale)
+	case...
+		switch(left or right)
+		case...
+			switch(robot position on field)
+			case...
+				ARRAY[1] = Distance
+				ARRAY[2] = Angle
+
+				ARRAY[1] = Distance
+				ARRAY[2] = Angle
+
+				ARRAY[1] = Distance
+				ARRAY[2] = Angle
+			case...
+		case...
+			switch(robot position on field)
+			case...
+			case...
+	case...
+		switch(left or right)
+		case...
+			switch(robot position on field)
+			case...
+			case...
+		case...
+			switch(robot position on field)
+			case...
+			case...
+}
+Auto_periodic() {
+
+if(tracking == false) {
+
+if(sensor position < distance) {
+	driving state = true
+	DRIVE_TO_DISTANCE(Dist, Angle);
+	driving state = false
+	//change state as nessacary for scheduling turning
+	TURN_TO_ANGLE;
+}
+if(sensor position < distance 2) {
+
+//Drive by dead reckoning
+} else if (tracking == true) {
+recieves angle and distance data from camera, Networktables
+drives accordingly
+//Drive by wire
+}
+//switch states based on "legs" completed
+//
+}
+Testing Results:
+
+Misc:	Using enums for stuff.
+
+struct{
+
+} LEG;
+

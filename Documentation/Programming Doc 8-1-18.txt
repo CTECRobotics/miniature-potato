@@ -1,0 +1,47 @@
+Date: 10/1/8
+
+Topic: Basic pseudocode for autonomous program and radial to tangential conversions.
+	Idea is to utilize arrays with set parameters for autonomous, said parameters shoudl be [Distance, Angle].
+	Timing should be used as a final checkpoint.
+	As for radial to tangential, use a simple conversion factor or angular kinematics.
+
+Pseudocode:
+double array1[distance, angle];
+double array2[distance, angle];
+double array3[distance, angle];
+
+if(distance<set1) {
+	if (currentangle<set && distance<set) {
+		Run left motors harder
+		pidloop left.set(base value + modifier)
+	} else if (currentangle>set && distance<set) {
+		Run right motors harder
+		pidloop right.set(base value + modifier)
+	} else {
+		pidloop left.set(base value)
+		pidloop.right.set(base value)
+	}
+} else if (distance<set2) {
+	...repeat the drive straight code...
+} repeat {
+	...repeat until reaching a certain point...
+	...swap to vision...
+} else if (distance>final set) {
+	if (currentangle<vision data) {
+		...Run straight line interations
+	{
+} else if (distancesonic < sonic) {
+	cube.deploy
+}
+
+current elev position = rotation scale * enocoder angular velocity * time = tangential position on elevator + acculamated position
+vs 
+current elev position = rotation scale * accumalated degreees = tangential position
+
+scale_elev = 2 * pi * radius_elev (1)
+scale_winch = 2 * pi * radius_winch (0.5)
+
+int ELEV_POSITION(accumalated degrees) {
+	int ELEV_POSITION*scale factor;
+	return ELEV_POSITION;
+}

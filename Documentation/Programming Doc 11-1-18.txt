@@ -1,0 +1,25 @@
+Date: 11/1/18
+
+Topic: Prelimenery writing of drive functions.
+
+Pseudocode:
+	void TURN(angle to turn to) {
+	if(CURRENT_ANGLE < TURN_ANGLE (array value)){
+	Run the left motors at a higher veloctiy
+	Run the right motors at opposing but equal velocity
+	//WEST COAST DRIVE ABILITY
+	} else if(CURRENT_ANGLE > TURN_ANGLE) {
+	Use the same scheme
+}
+}
+	void DISTANCE(CURRENT_SET_DISTANCE) {
+	TARGET_DISTANCE = CURRENT_SET_DISTANCE;
+	insert the drive straight according to xa distance loop
+
+}
+
+Test Results:
+
+Misc: May require us to switch to a time based control system.
+	But since it's parameter based, time may not be an important factor.
+	Check variable declaration and init.	

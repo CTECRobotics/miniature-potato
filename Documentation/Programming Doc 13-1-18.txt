@@ -1,0 +1,13 @@
+Date: 13/1/18
+
+Topic: Repairing the Radio and Teleop mode.
+	Advance Autonomous framework and functions.
+
+Pseudocode:
+
+Testing Results: Configuring of radio and fixing error in device id's resulted in control.
+	Was able to get data from and reset gyroscopes.
+	AHRS connection code WORKS!
+
+Misc: GetSensorPosition(); ,try this later!
+	ConfigFowardSoftLimitThreshold(); , for configuring the soft limit in native units (4096 thing)
