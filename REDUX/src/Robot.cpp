@@ -254,10 +254,36 @@ public:
 		return true;
 	}
 	void SWITCH_SCALE (string POSITION) {
-		if(ALLIED_POS_INIT == "L") {
+		boolean LLL = false;
+		boolean RRR = false;
+		boolean LRL = false;
+		boolean RLR = false;
+		if(ALLIED_POS_INIT.find("LLL")){
+			LLL = true;
+		} else if((ALLIED_POS_INIT.find("RRR")){
+			RRR = true;
+		} else if(ALLIED_POS_INIT.find("LRL"){
+			LRL = true;
+		} else if(ALLIED_POS_INIT.find("RLR"){
+			RLR = true;
+		}
+		if(LLL||RRR||LRL||RLR){
+			if(LLL){
 			SWITCH_1 = 0;
-		} else {
+			SWITCH_2 = 0;
+			}
+			if(RRR){
 			SWITCH_1 = 1;
+			SWITCH_2 = 1;
+			}
+			if(LRL){
+			SWITCH_1 = 0;
+			SWITCH_2 = 0;
+			}
+			if(RLR){
+			SWITCH_1 = 1;
+			SWITCH_2 = 1;
+			}
 		}
 		switch (SWITCH_1) {
 		case 0:
