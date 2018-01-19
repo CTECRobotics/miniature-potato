@@ -19,38 +19,49 @@
 #include "AHRS.h"
 #include <networktables/NetworkTable.h>
 #include <string>
-
+using namespace std;
 class Robot : public frc::IterativeRobot {
 public:
+	struct Leg_Data{
+		int DIST;
+		int ANGLE;
+	}*Segments[3];
+	enum {
+		SEG_1 = 0,
+		SEG_2 = 1,
+		SEG_3 = 3,
+	};
 		//REGULATORY VALUES
-	double VALVE_L;
-	double VALVE_R;
+	bool IS_TRACKING;
+	bool DRIVESTATE;
 	int AUTO_MODE;
+	int SWITCH_1;
+	int SWITCH_2;
+	int SWITCH_POS;
 		//CONTROL VALUES
 	double CAMERA_ERROR;	//POSTIVE IS NEGATIVE, RIGHT IS POSITIVE
 	double SETPOINT_GYRO;
 	double NAVX_GRYO;		//OUTPUT FROM THE NAVX
-	double ADX_GRYO;		//OUTPUT FROM THE SPI
+	double ADX_GRYO;		//OUTPUT FROM THE SPI GYROSCOPE
 	double COMPOSITE_GYRO;	//AVERAGED VALUE OF GYROSCOPES
 	double L_VELOCITY;		//VELOCITY OF THE ENCODERS IN TICKS
 	double R_VELOCITY;
 	double ELEV_POSITION;
 	double THROTTLE;
 	double STEER;
-	double UNIV_A_SET;		//UNIVERSAL
-	std::string ALLIANCE;
-	std::string ALLIED_POS;
+	double UNIV_A_SET;		//UNIVERSAL ANGLE TARGET
+	double UNIV_D_SET;		//UNIVERSAL DISTANCE TARGET
+	double AUTO_RANGE;
+	string ALLIANCE;
+	string ALLIED_POS;
+	string ALLIED_POS_INIT;
 		//DON'T TOUCH ME VALUES
-	double MAXIMUM_RPM;
-	double VALVE_WAIT;
-	double ARRAY_WP_1 [2]= {5, 90};
-	double ARRAY_WP_2 [2]= {5, 90};
-	double ARRAY_WP_3 [2]= {5, 90};
+	const int VALVE_WAIT = 0.25;
+	double ARRAY_WP [2]= {0, 0};
 	const int ELEV_SCALE = 1;
 	const int WINCH_SCALE = 1;
-		//MISC
-
-
+		//TEMP
+	double DISTANCE;
 		//CANTALON OBJECTS
 	TalonSRX *MOTOR_LM;
 	TalonSRX *MOTOR_LS;
@@ -58,38 +69,45 @@ public:
 	TalonSRX *MOTOR_RS;
 	TalonSRX *WINCH_ELEV_1;
 	TalonSRX *WINCH_ELEV_2;
+	TalonSRX *ELEVATOR_ELEV_1;
+	TalonSRX *ELEVATOR_ELEV_2;
 	TalonSRX *ACTUATOR_1;
 	TalonSRX *ACTUATOR_2;
-		//PID ASSESTS
-		//PID LOOPS
-	PIDController *MOTOR_L_PID;
-	PIDController *MOTOR_R_PID;
+	TalonSRX *BOX_LIFT;
 		//SOLENOIDS
 	DoubleSolenoid *GEARBOX_L;
 	DoubleSolenoid *GEARBOX_R;
-	DoubleSolenoid *ELEV_WINCH;
-	DoubleSolenoid *ARM_L;
-	DoubleSolenoid *ARM_R;
 		//SENSOR INPUTS
 	Encoder *MOTOR_ENCODER_L;
 	Encoder *MOTOR_ENCODER_R;
 	Encoder *WINCH_ELEV;
 	ADXRS450_Gyro *CONTROL_GYRO;
+	DigitalInput *TYPE_1;
+	DigitalInput *TYPE_2;
+	DigitalInput *TYPE_3;
 		//MISC
 	AHRS *PHYSIX;
 	Timer *AUTO_TIMER;
 	Joystick *LEFT_JOYSTICK;
 	Joystick *RIGHT_JOYSTICK;
-	std::shared_ptr<nt::NetworkTable> VISION_DATA;
-	AnalogInput *AUTO_RANGEFINDER;
+
+	shared_ptr<nt::NetworkTableInstance> VISION_DATA_1;
+	shared_ptr<nt::NetworkTable> VISION_DATA_2;
+	shared_ptr<nt::NetworkTable> VISION_DATA;
+
+	AnalogInput *RIO_ULTRASONIC;
 	Accelerometer *INTERNAL_ACCELEROMETER;
 	DriverStation *DS;
+
 	void RobotInit() {
 				//VALUE SETUP
 			//REGULATORY VALUES
-		VALVE_L = 0;
-		VALVE_R = 1;
+		IS_TRACKING = false;
+		DRIVESTATE = true;
 		AUTO_MODE = 0;
+		SWITCH_1 = 0;
+		SWITCH_2 = 0;
+		SWITCH_POS = 0;
 			//CONTROL VALUES
 		SETPOINT_GYRO = 0;
 		NAVX_GRYO = 0;
@@ -100,11 +118,11 @@ public:
 		THROTTLE = 0;
 		STEER = 0;
 		UNIV_A_SET = 0;		//THIS IS THE UNIVERSAL ANGLE SETPOINT FOR AUTO
-//		ALLIANCE = "";
-//		ALLIED_POS = "";
-			//DO NOT MODIFY
-		MAXIMUM_RPM = 511;
-		VALVE_WAIT = 0.25;
+		AUTO_RANGE= 0;
+		ALLIANCE = "";
+		ALLIED_POS = "";
+			//TEMP
+		DISTANCE = 0;
 
 				//PERIPHERAL AND CONTROL SETUP
 			//TALONSRX
@@ -114,40 +132,42 @@ public:
 		MOTOR_RS = new TalonSRX(4);
 		WINCH_ELEV_1 = new TalonSRX(5);
 		WINCH_ELEV_2 = new TalonSRX(6);
+		ELEVATOR_ELEV_1 = new TalonSRX(7);
+		ELEVATOR_ELEV_2 = new TalonSRX(8);
+		ACTUATOR_1 = new TalonSRX(9);
+		ACTUATOR_2 = new TalonSRX(10);
+		BOX_LIFT = new TalonSRX(11);
 			//SOLENOIDS
-		GEARBOX_L = new DoubleSolenoid(1, 1, 1);
-		GEARBOX_R = new DoubleSolenoid(1, 1, 1);
-		ELEV_WINCH = new DoubleSolenoid(1, 1, 1);
-		ARM_L = new DoubleSolenoid(1, 1, 1);
-		ARM_R = new DoubleSolenoid(1, 1, 1);
-
-//			//NAVX CONNECTION ATTEMPT
+		GEARBOX_L = new DoubleSolenoid(1, 1, 2);
+		GEARBOX_R = new DoubleSolenoid(2, 1, 2);
+			//NAVX CONNECTION ATTEMPT
         try {
             PHYSIX = new AHRS(SPI::Port::kMXP);
         } catch (std::exception ex ) {
-            std::string ERROR_STRING = "Error instantiating navX-MXP: PHYSIX";
+            string ERROR_STRING = "Error instantiating navX-MXP: PHYSIX";
             ERROR_STRING += ex.what();
             DriverStation::ReportError(ERROR_STRING.c_str());
         }
         	//SENSORS, JOYSTICKS, ACCELEROMETERS, ETC.
 		LEFT_JOYSTICK = new Joystick(0);
 		CONTROL_GYRO = new ADXRS450_Gyro();
-		AUTO_RANGEFINDER = new AnalogInput(0);
+		RIO_ULTRASONIC = new AnalogInput(0);
 		AUTO_TIMER = new Timer();
 		INTERNAL_ACCELEROMETER = new BuiltInAccelerometer();
 			//INITIAL SETPOINTS, CALIB, ETC.
 				//ControlMode::(mode) IS NOW USED TO DETERMINE CONTROL METHOD
 		MOTOR_LM->Set(ControlMode::PercentOutput, 0);
 		MOTOR_RM->Set(ControlMode::PercentOutput, 0);
-		MOTOR_LS->Set(ControlMode::PercentOutput, 0);
-		MOTOR_RS->Set(ControlMode::PercentOutput, 0);
 		MOTOR_LS->Set(ControlMode::Follower, 1);
 		MOTOR_RS->Set(ControlMode::Follower, 3);
 		WINCH_ELEV_1->Set(ControlMode::PercentOutput, 0);
-		WINCH_ELEV_2->Set(ControlMode::PercentOutput, 0);
 		WINCH_ELEV_2->Set(ControlMode::Follower, 5);
+		ELEVATOR_ELEV_1->Set(ControlMode::PercentOutput, 0);
+		ELEVATOR_ELEV_2->Set(ControlMode::Follower, 7);
 		ACTUATOR_1->Set(ControlMode::PercentOutput, 0);
-		ACTUATOR_2->Set(ControlMode::PercentOutput, 0);
+		ACTUATOR_2->Set(ControlMode::Follower, 0);
+		ACTUATOR_2->SetInverted(true);
+		BOX_LIFT->Set(ControlMode::PercentOutput, 0);
 		CONTROL_GYRO->Calibrate();
 			//MISC
 			//INTERNAL PID SETUP
@@ -157,12 +177,10 @@ public:
 				//SETS UP SENSOR TYPE, PID SLOT (DEFINED AS pidIdx) NUMBER, TIMEOUT
 		MOTOR_LM->SetSensorPhase(true);
 				//DETERMINES READ DIRECTIONS
-
 		MOTOR_LM->ConfigNominalOutputForward(0, 10);
 		MOTOR_LM->ConfigNominalOutputReverse(0, 10);
 		MOTOR_LM->ConfigPeakOutputForward(1, 10);
 		MOTOR_LM->ConfigPeakOutputReverse(-1, 10);
-
 				//SETS UP THE VARIOUS VALUES IN THE PID SLOT
 		MOTOR_LM->Config_kF(0, 0.0, 10);
 		MOTOR_LM->Config_kP(0, 0.1, 10);
@@ -172,46 +190,122 @@ public:
 		MOTOR_RM->GetSelectedSensorVelocity(2);
 		MOTOR_RM->ConfigSelectedFeedbackSensor(FeedbackDevice::CTRE_MagEncoder_Relative, 0, 10);
 		MOTOR_RM->SetSensorPhase(true);
-
 		MOTOR_RM->ConfigNominalOutputForward(0, 10);
 		MOTOR_RM->ConfigNominalOutputReverse(0, 10);
 		MOTOR_RM->ConfigPeakOutputForward(1, 10);
 		MOTOR_RM->ConfigPeakOutputReverse(-1, 10);
-
 		MOTOR_RM->Config_kF(0, 0.0, 10);
 		MOTOR_RM->Config_kP(0, 0.1, 10);
 		MOTOR_RM->Config_kI(0, 0.0, 10);
 		MOTOR_RM->Config_kD(0, 0.0, 10);
 
-		VISION_DATA = nt::NetworkTable::GetTable("JETSON");
+		ELEVATOR_ELEV_1->ConfigForwardSoftLimitThreshold(10000, 10);
+		ELEVATOR_ELEV_2->ConfigForwardSoftLimitThreshold(10000, 10);
+		ELEVATOR_ELEV_1->ConfigReverseSoftLimitThreshold(-10000, 10);
+		ELEVATOR_ELEV_2->ConfigReverseSoftLimitThreshold(-10000, 10);
 
-	}
-	void TURN_TO_ANGLE (int UNIV_A_SET ) {
-		if(COMPOSITE_GYRO < UNIV_A_SET ){
-			MOTOR_LM->Set(ControlMode::Velocity, -0.5);
-			MOTOR_RM->Set(ControlMode::Velocity, 0.5);
-		} else if(COMPOSITE_GYRO > UNIV_A_SET ) {
+		ELEVATOR_ELEV_1->ConfigForwardSoftLimitEnable(true, 10);
+		ELEVATOR_ELEV_2->ConfigForwardSoftLimitEnable(true, 10);
+		ELEVATOR_ELEV_1->ConfigReverseSoftLimitEnable(true, 10);
+		ELEVATOR_ELEV_2->ConfigReverseSoftLimitEnable(true, 10);
+		NetworkTable::SetServerMode();
+		NetworkTable::SetIPAddress("roborio-6445-frc.local");
+		NetworkTable::Initialize();
 
+		shared_ptr<nt::NetworkTable> VISION_DATA = NetworkTable::GetTable("JETSON");
+				//SWITCH SETUP
+		if(TYPE_1->Get()) {
+			SWITCH_POS = 1;
+		} else if(TYPE_2->Get()) {
+			SWITCH_POS = 2;
 		} else {
-
-		}
-
-	}
-	void DRIVE_TO_DISTANCE() {
-		if(CONTROL_GYRO->GetAngle() <= (UNIV_A_SET - 2)) {
-			MOTOR_LM->Set(ControlMode::PercentOutput, 0.15);
-			MOTOR_RM->Set(ControlMode::PercentOutput, -0.08);
-		} else if(CONTROL_GYRO->GetAngle() >= (UNIV_A_SET + 2)) {
-			MOTOR_LM->Set(ControlMode::PercentOutput, 0.05);
-			MOTOR_RM->Set(ControlMode::PercentOutput, -0.18);
-		} else if(CONTROL_GYRO->GetAngle() > (UNIV_A_SET - 2) || CONTROL_GYRO->GetAngle() < (UNIV_A_SET + 2)) {
-			MOTOR_LM->Set(ControlMode::PercentOutput, 0.25);
-			MOTOR_RM->Set(ControlMode::PercentOutput, -0.28);
+			SWITCH_POS = 3;
 		}
 	}
-	int CALC_ELEV_POSITION(int ELEVATOR_DEGREES) {
-		double ELEV_POSITION = ELEVATOR_DEGREES*ELEV_SCALE;
-		return ELEV_POSITION;
+	//INPUT A TURN ANGLE AND ROTATE THE ROBOT AS SUCH
+	//OUTPUT A SUCCESS STATEMENT
+	bool TURN_TO_ANGLE (int UNIV_A_SET ) {
+		if(COMPOSITE_GYRO < (UNIV_A_SET - 2)){
+			MOTOR_LM->Set(ControlMode::Velocity, -0.5);
+			MOTOR_RM->Set(ControlMode::Velocity, -0.5);
+		} else if(COMPOSITE_GYRO > (UNIV_A_SET + 2)) {
+			MOTOR_LM->Set(ControlMode::Velocity, 0.5);
+			MOTOR_RM->Set(ControlMode::Velocity, 0.5);
+		} else {
+			MOTOR_LM->Set(ControlMode::Velocity, 0.0);
+			MOTOR_RM->Set(ControlMode::Velocity, 0.0);
+		}
+		return true;
+	}
+	bool DRIVE_TO_DISTANCE(int UNIV_D_SET, int UNIV_A_SET) {
+		if((CONTROL_GYRO->GetAngle() <= (UNIV_A_SET - 2)) && DISTANCE < UNIV_D_SET) {
+			MOTOR_LM->Set(ControlMode::Velocity, 0.15);
+			MOTOR_RM->Set(ControlMode::Velocity, -0.15);
+		} else if((CONTROL_GYRO->GetAngle() >= (UNIV_A_SET + 2)) && DISTANCE < UNIV_D_SET) {
+			MOTOR_LM->Set(ControlMode::Velocity, 0.15);
+			MOTOR_RM->Set(ControlMode::Velocity, -0.15);
+		} else if((CONTROL_GYRO->GetAngle() > (UNIV_A_SET - 2) || CONTROL_GYRO->GetAngle() < (UNIV_A_SET + 2)) && DISTANCE < UNIV_D_SET) {
+			MOTOR_LM->Set(ControlMode::Velocity, 0.15);
+			MOTOR_RM->Set(ControlMode::Velocity, -0.15);
+		} else {
+			MOTOR_LM->Set(ControlMode::Velocity, 0.15);
+			MOTOR_RM->Set(ControlMode::Velocity, -0.15);
+		}
+		return true;
+	}
+	void SWITCH_SCALE (string POSITION) {
+		if(ALLIED_POS_INIT == "L") {
+			SWITCH_1 = 0;
+		} else {
+			SWITCH_1 = 1;
+		}
+		switch (SWITCH_1) {
+		case 0:
+			switch (SWITCH_2) {
+			case 0:
+				Segments[0]->DIST = 1;
+				Segments[0]->ANGLE = 90;
+				Segments[1]->DIST = 2;
+				Segments[1]->ANGLE = 270;
+				break;
+			case 1:
+				Segments[0]->DIST = 1;
+				Segments[0]->ANGLE = 90;
+				Segments[1]->DIST = 2;
+				Segments[1]->ANGLE = 270;
+				break;
+			case 2:
+				Segments[0]->DIST = 1;
+				Segments[0]->ANGLE = 90;
+				Segments[1]->DIST = 2;
+				Segments[1]->ANGLE = 270;
+				break;
+			}
+			break;
+		case 1:
+			switch (SWITCH_2) {
+			case 0:
+				Segments[0]->DIST = 1;
+				Segments[0]->ANGLE = 90;
+				Segments[1]->DIST = 2;
+				Segments[1]->ANGLE = 270;
+				break;
+			case 1:
+				Segments[0]->DIST = 1;
+				Segments[0]->ANGLE = 90;
+				Segments[1]->DIST = 2;
+				Segments[1]->ANGLE = 270;
+				break;
+			case 2:
+				Segments[0]->DIST = 1;
+				Segments[0]->ANGLE = 90;
+				Segments[1]->DIST = 2;
+				Segments[1]->ANGLE = 270;
+				break;
+			}
+			break;
+		}
+
 	}
 	void SHIFT_HIGH () {
 		GEARBOX_L->Set(DoubleSolenoid::kForward);
@@ -227,107 +321,42 @@ public:
 		GEARBOX_L->Set(DoubleSolenoid::kOff);
 		GEARBOX_R->Set(DoubleSolenoid::kOff);
 	}
-	void ACTUATOR_UP() {
-		ARM_L->Set(DoubleSolenoid::kReverse);
-		ARM_R->Set(DoubleSolenoid::kReverse);
-		frc::Wait(0.5);
-		ARM_L->Set(DoubleSolenoid::kOff);
-		ARM_R->Set(DoubleSolenoid::kOff);
-	}
-	void ACTUATOR_DOWN () {
-		ARM_L->Set(DoubleSolenoid::kForward);
-		ARM_R->Set(DoubleSolenoid::kForward);
-		frc::Wait(0.5);
-		ARM_L->Set(DoubleSolenoid::kOff);
-		ARM_R->Set(DoubleSolenoid::kOff);
-	}
-	void CHANGE_TO_WINCH () {
-		ELEV_WINCH->Set(DoubleSolenoid::kReverse);
-		frc::Wait(0.5);
-		ELEV_WINCH->Set(DoubleSolenoid::kOff);
-	}
-	void CHANGE_TO_ELEVATOR () {
-		ELEV_WINCH->Set(DoubleSolenoid::kForward);
-		frc::Wait(0.5);
-		ELEV_WINCH->Set(DoubleSolenoid::kOff);
-	}
 	void AutonomousInit() override {
 		ALLIANCE = std::to_string(DS->GetInstance().GetAlliance());
 		SmartDashboard::PutString("ALLIANCE_COLOR", "ALLIANCE");
-
-		MOTOR_ENCODER_L->Reset();
-		MOTOR_ENCODER_R->Reset();
-		WINCH_ELEV->Reset();
-
-		PHYSIX->Reset();
+		ALLIED_POS = DriverStation::GetInstance().GetGameSpecificMessage();
+		SWITCH_SCALE(DriverStation::GetInstance().GetGameSpecificMessage());
 
 		AUTO_TIMER->Reset();
 		AUTO_TIMER->Start();
+		PHYSIX->Reset();
 		CONTROL_GYRO->Reset();
 	}
 
 	void AutonomousPeriodic() {
 		AUTO_MODE = VISION_DATA->GetNumber("AUTO_MODE", 0);
-		NAVX_GRYO = PHYSIX->GetAngle();
-		ADX_GRYO = CONTROL_GYRO->GetAngle();
+		NAVX_GRYO = PHYSIX->GetAngle() + 180;
+		ADX_GRYO = CONTROL_GYRO->GetAngle() + 180;
 		COMPOSITE_GYRO = ((NAVX_GRYO + ADX_GRYO)/2);
-		ALLIED_POS = DriverStation::GetInstance().GetGameSpecificMessage();
-		if(ALLIED_POS[0] == 'L') {
-			AUTO_MODE = 0;
-		} else {
-			AUTO_MODE = 1;
-		}
-		switch (AUTO_MODE) {
-		case 0:
-
-			break;
-		case 1:
-
-			break;
-		case 2:
-
-			break;
-		}
-		/*
-		if(AUTO_TIMER->Get() >= 0) {
-			if(AUTO_RANGEFINDER->GetValue() >= 1000) {
-				MOTOR_LM->Set(ControlMode::PercentOutput, 0.25);
-				MOTOR_RM->Set(ControlMode::PercentOutput, -0.28);
-			} else if (AUTO_RANGEFINDER->GetValue() < 1000) {
-				MOTOR_LM->Set(ControlMode::PercentOutput, 0.0);
-				MOTOR_RM->Set(ControlMode::PercentOutput, 0.0);
-				//DO SOMETHING
+		AUTO_RANGE = RIO_ULTRASONIC->GetAverageValue();
+		//SELECTION BASED ON SWITCH POSTION, OR ROBOT POSITION
+		//IS_TRACKING WILL NEED TO BE RETRIEVED FROM NETWORKTABLES
+		//TIME WILL NEED TO BE SENT TO JEFF ALONG WITH CURRENT DISTANCE
+		if(!IS_TRACKING) {
+			if(DRIVESTATE) {
+				DRIVE_TO_DISTANCE(Segments[0]->DIST, Segments[0]->ANGLE);
 			} else {
-				MOTOR_LM->Set(ControlMode::PercentOutput, 0.0);
-				MOTOR_RM->Set(ControlMode::PercentOutput, 0.0);
+				TURN_TO_ANGLE(Segments[1]->ANGLE);
 			}
-		}
+		} else if (IS_TRACKING) {
 
-		if(AUTO_TIMER->Get() >= 14) {
-			MOTOR_LM->Set(ControlMode::PercentOutput, 0.25);
-			MOTOR_RM->Set(ControlMode::PercentOutput, -0.28);
-		} else if(AUTO_TIMER->Get() >= 1) {
-			if(CONTROL_GYRO->GetAngle() <= (GYRO_SETPOINT-2)) {
-				MOTOR_LM->Set(ControlMode::PercentOutput, 0.15);
-				MOTOR_RM->Set(ControlMode::PercentOutput, -0.08);
-			} else if(CONTROL_GYRO->GetAngle() >= (GYRO_SETPOINT+2)) {
-				MOTOR_LM->Set(ControlMode::PercentOutput, 0.05);
-				MOTOR_RM->Set(ControlMode::PercentOutput, -0.18);
-			} else if(CONTROL_GYRO->GetAngle() > (GYRO_SETPOINT-2) || CONTROL_GYRO->GetAngle() < (GYRO_SETPOINT+2)) {
-				MOTOR_LM->Set(ControlMode::PercentOutput, 0.25);
-				MOTOR_RM->Set(ControlMode::PercentOutput, -0.28);
-			}
-		} else if(AUTO_TIMER->Get() >= 0) {
-			MOTOR_LM->Set(0);
-			MOTOR_RM->Set(0);
 		}
-		*/
 	}
 
 	void TeleopInit() {
 		AUTO_TIMER->Stop();
-		//MOTOR_L_PID->Disable();
-		//MOTOR_R_PID->Disable();
+		PHYSIX->Reset();
+		CONTROL_GYRO->Reset();
 	}
 
 	void TeleopPeriodic() {
@@ -342,13 +371,6 @@ public:
 		if (LEFT_JOYSTICK->GetRawButton(2)) {
 			SHIFT_LOW();
 		}
-		if (LEFT_JOYSTICK->GetRawButton(11)) {
-			ACTUATOR_UP();
-		}
-		if (LEFT_JOYSTICK->GetRawButton(8)) {
-			ACTUATOR_DOWN();
-		}
-
 
 		NAVX_GRYO = PHYSIX->GetAngle();
 		ADX_GRYO = CONTROL_GYRO->GetAngle();
@@ -357,13 +379,14 @@ public:
 		L_VELOCITY = MOTOR_LM->GetSelectedSensorVelocity(1); //*SOME SCALE FACTOR
 		R_VELOCITY = MOTOR_RM->GetSelectedSensorVelocity(3);
 
-//		OUTPUT = VOLTAGE_CONVERT(AUTO_RANGEFINDER->GetVoltage());
+		RIO_ULTRASONIC->GetAverageValue();
+
 		SmartDashboard::PutNumber("RPMS_L",  MOTOR_ENCODER_L->GetRate());
 		SmartDashboard::PutNumber("RPMS_R",  MOTOR_ENCODER_R->GetRate());
 		SmartDashboard::PutNumber("ADX_OUTPUT", CONTROL_GYRO->GetAngle());
 		SmartDashboard::PutNumber("NAVX_OUTPUT", PHYSIX->GetAngle());
-		SmartDashboard::PutNumber("COMPOSITE", COMPOSITE_GYRO);
-		SmartDashboard::PutNumber("RANGE", AUTO_RANGEFINDER->GetVoltage());
+		SmartDashboard::PutNumber("COMPOSITE_OUTPUT", COMPOSITE_GYRO);
+		SmartDashboard::PutNumber("RANGE", RIO_ULTRASONIC->GetVoltage());
 		SmartDashboard::PutNumber("X", INTERNAL_ACCELEROMETER->GetX());
 		SmartDashboard::PutNumber("Y", INTERNAL_ACCELEROMETER->GetY());
 		SmartDashboard::PutNumber("Z", INTERNAL_ACCELEROMETER->GetZ());
