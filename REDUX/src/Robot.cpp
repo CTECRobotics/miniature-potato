@@ -26,18 +26,29 @@ public:
 		int DIST;
 		int ANGLE;
 	}*Segments[3];
-	enum {
+	//DESIGNATES THREE Leg_Data structs AS WRITABLE SEGMENTS FOR AUTONOMOUS CONTROL
+	enum SEGMENT_STATE{
 		SEG_1 = 0,
 		SEG_2 = 1,
-		SEG_3 = 3,
+		SEG_3 = 2,
 	};
+	//TRACKING WHICH SEGMENT THE ROBOT IS EXECUTING
+	enum SWITCH_POS_VALUES{
+		LEFT_FIELD = 0,
+		RIGHT_FIELD = 1,
+	};
+	//VALUES FOR TRACKING WHICH SIDE OF THE FIELD THE SWITCH IS ON
+	enum ROBOT_STARTING_POS{
+		ROB_ON_LEFT = 0,
+		ROB_ON_CENTER = 1,
+		ROB_ON_RIGHT = 2,
+	};
+	//DESIGNATES CONTROL STATES FOR AUTONOMOUS SCHEDULING
 		//REGULATORY VALUES
 	bool IS_TRACKING;
-	bool DRIVESTATE;
+	bool DRIVESTATE;  //BAC: this variable seems unused
 	int AUTO_MODE;
-	int SWITCH_1;
-	int SWITCH_2;
-	int SWITCH_POS;
+	int FIELD_POS;
 		//CONTROL VALUES
 	double CAMERA_ERROR;	//POSTIVE IS NEGATIVE, RIGHT IS POSITIVE
 	double SETPOINT_GYRO;
@@ -52,6 +63,7 @@ public:
 	double UNIV_A_SET;		//UNIVERSAL ANGLE TARGET
 	double UNIV_D_SET;		//UNIVERSAL DISTANCE TARGET
 	double AUTO_RANGE;
+	int DRIVE_STATE;
 	string ALLIANCE;
 	string ALLIED_POS;
 	string ALLIED_POS_INIT;
@@ -60,6 +72,11 @@ public:
 	double ARRAY_WP [2]= {0, 0};
 	const int ELEV_SCALE = 1;
 	const int WINCH_SCALE = 1;
+	const int ROT_TICKS = 4096;
+	const float PI = 3.1415;
+	const float CIRCUMFERENCE = (PI*6.0);
+	const float ULTRA_VOLT_TO_MM = 5000/4.88;
+
 		//TEMP
 	double DISTANCE;
 		//CANTALON OBJECTS
@@ -82,9 +99,6 @@ public:
 	Encoder *MOTOR_ENCODER_R;
 	Encoder *WINCH_ELEV;
 	ADXRS450_Gyro *CONTROL_GYRO;
-	DigitalInput *TYPE_1;
-	DigitalInput *TYPE_2;
-	DigitalInput *TYPE_3;
 		//MISC
 	AHRS *PHYSIX;
 	Timer *AUTO_TIMER;
@@ -105,16 +119,12 @@ public:
 		IS_TRACKING = false;
 		DRIVESTATE = true;
 		AUTO_MODE = 0;
-		SWITCH_1 = 0;
-		SWITCH_2 = 0;
-		SWITCH_POS = 0;
+		FIELD_POS = 0;
 			//CONTROL VALUES
 		SETPOINT_GYRO = 0;
 		NAVX_GRYO = 0;
 		ADX_GRYO = 0;
 		COMPOSITE_GYRO = 0;
-		L_VELOCITY = 0;
-		R_VELOCITY = 0;
 		THROTTLE = 0;
 		STEER = 0;
 		UNIV_A_SET = 0;		//THIS IS THE UNIVERSAL ANGLE SETPOINT FOR AUTO
@@ -150,6 +160,7 @@ public:
         }
         	//SENSORS, JOYSTICKS, ACCELEROMETERS, ETC.
 		LEFT_JOYSTICK = new Joystick(0);
+		RIGHT_JOYSTICK = new Joystick(1);
 		CONTROL_GYRO = new ADXRS450_Gyro();
 		RIO_ULTRASONIC = new AnalogInput(0);
 		AUTO_TIMER = new Timer();
@@ -182,10 +193,10 @@ public:
 		MOTOR_LM->ConfigPeakOutputForward(1, 10);
 		MOTOR_LM->ConfigPeakOutputReverse(-1, 10);
 				//SETS UP THE VARIOUS VALUES IN THE PID SLOT
-		MOTOR_LM->Config_kF(0, 0.0, 10);
-		MOTOR_LM->Config_kP(0, 0.1, 10);
-		MOTOR_LM->Config_kI(0, 0.0, 10);
-		MOTOR_LM->Config_kD(0, 0.0, 10);
+		MOTOR_LM->Config_kF(0, 0.375, 10);
+		MOTOR_LM->Config_kP(0, 0.125, 10);
+		MOTOR_LM->Config_kI(0, 0.05, 10);
+		MOTOR_LM->Config_kD(0, 0.05, 10);
 
 		MOTOR_RM->GetSelectedSensorVelocity(2);
 		MOTOR_RM->ConfigSelectedFeedbackSensor(FeedbackDevice::CTRE_MagEncoder_Relative, 0, 10);
@@ -194,113 +205,144 @@ public:
 		MOTOR_RM->ConfigNominalOutputReverse(0, 10);
 		MOTOR_RM->ConfigPeakOutputForward(1, 10);
 		MOTOR_RM->ConfigPeakOutputReverse(-1, 10);
-		MOTOR_RM->Config_kF(0, 0.0, 10);
-		MOTOR_RM->Config_kP(0, 0.1, 10);
-		MOTOR_RM->Config_kI(0, 0.0, 10);
-		MOTOR_RM->Config_kD(0, 0.0, 10);
+		MOTOR_RM->Config_kF(0, 0.375, 10);
+		MOTOR_RM->Config_kP(0, 0.125, 10);
+		MOTOR_RM->Config_kI(0, 0.05, 10);
+		MOTOR_RM->Config_kD(0, 0.05, 10);
 
 		ELEVATOR_ELEV_1->ConfigForwardSoftLimitThreshold(10000, 10);
 		ELEVATOR_ELEV_2->ConfigForwardSoftLimitThreshold(10000, 10);
 		ELEVATOR_ELEV_1->ConfigReverseSoftLimitThreshold(-10000, 10);
 		ELEVATOR_ELEV_2->ConfigReverseSoftLimitThreshold(-10000, 10);
-
+		//SOFT LIMITS TO ENSURE THAT ELEATOR SYSTEM DOES NOT BREAK THINGS
+		//UNITS ARE IN NATIVE UNITS, 4096 PER ROTATION
 		ELEVATOR_ELEV_1->ConfigForwardSoftLimitEnable(true, 10);
 		ELEVATOR_ELEV_2->ConfigForwardSoftLimitEnable(true, 10);
 		ELEVATOR_ELEV_1->ConfigReverseSoftLimitEnable(true, 10);
 		ELEVATOR_ELEV_2->ConfigReverseSoftLimitEnable(true, 10);
 		NetworkTable::SetServerMode();
+		//SERVER VS CLIENT MODE
 		NetworkTable::SetIPAddress("roborio-6445-frc.local");
+		//SETS THE ROBORIO IP ADDRESS FOR THE JETSON TX1
 		NetworkTable::Initialize();
-
+		//STARTS UP NETWORK TABLE
 		shared_ptr<nt::NetworkTable> VISION_DATA = NetworkTable::GetTable("JETSON");
-				//SWITCH SETUP
-		if(TYPE_1->Get()) {
-			SWITCH_POS = 1;
-		} else if(TYPE_2->Get()) {
-			SWITCH_POS = 2;
-		} else {
-			SWITCH_POS = 3;
-		}
 	}
 	//INPUT A TURN ANGLE AND ROTATE THE ROBOT AS SUCH
 	//OUTPUT A SUCCESS STATEMENT
-	bool TURN_TO_ANGLE (int UNIV_A_SET ) {
-		if(COMPOSITE_GYRO < (UNIV_A_SET - 2)){
-			MOTOR_LM->Set(ControlMode::Velocity, -0.5);
-			MOTOR_RM->Set(ControlMode::Velocity, -0.5);
-		} else if(COMPOSITE_GYRO > (UNIV_A_SET + 2)) {
-			MOTOR_LM->Set(ControlMode::Velocity, 0.5);
-			MOTOR_RM->Set(ControlMode::Velocity, 0.5);
+	bool TURN_TO_ANGLE (int UNIV_A_SET) {
+		const float INCH_TO_METRE = ((25.4)/1000.0);
+		const float DRIVETRAIN_RADIUS = 12.5625;
+		//DISTANCE FROM CENTER LINE OF ROBOT TO CENTER OF MIDDLE DRIVE WHEELS, WEST COAST STYLE
+		//4096 "TICKS" PER ROTATION, AS COUNTED BY THE ENCODERS
+		const int ANGLE_TOLERANCE = 2;
+		float DIFFERENCE = 0;
+		double DIRECTION;
+		float DISTANCE_PER_WHEEL = 0;
+		NAVX_GRYO = PHYSIX->GetAngle() + 180;
+		ADX_GRYO = CONTROL_GYRO->GetAngle() + 180;
+		COMPOSITE_GYRO = ((NAVX_GRYO + ADX_GRYO)/2);
+		bool DONE_TURNING;
+
+		DIFFERENCE = ((abs(UNIV_A_SET - COMPOSITE_GYRO)) * (PI/180));
+			//ANGULAR DIFFERENCE IN RADIANS
+		DISTANCE_PER_WHEEL = (DRIVETRAIN_RADIUS * INCH_TO_METRE * DIFFERENCE);
+			//DISTANCE TO TRAVEL PER WHEEL IN METRES
+			//Essentially DIST = RADIUS * THETA
+		DIRECTION = ((sin((UNIV_A_SET - COMPOSITE_GYRO)))/abs(sin(COMPOSITE_GYRO - UNIV_A_SET)));
+
+
+		if((COMPOSITE_GYRO != (UNIV_A_SET - ANGLE_TOLERANCE)) || (COMPOSITE_GYRO != (UNIV_A_SET + ANGLE_TOLERANCE))) {
+			MOTOR_LM->Set(ControlMode::Position, (DISTANCE_PER_WHEEL/CIRCUMFERENCE) * ROT_TICKS * DIRECTION);
+			MOTOR_RM->Set(ControlMode::Position, (DISTANCE_PER_WHEEL/CIRCUMFERENCE) * ROT_TICKS * DIRECTION);
+			DONE_TURNING = false;
 		} else {
 			MOTOR_LM->Set(ControlMode::Velocity, 0.0);
 			MOTOR_RM->Set(ControlMode::Velocity, 0.0);
+			DONE_TURNING = true;
 		}
-		return true;
+return DONE_TURNING;
 	}
-	bool DRIVE_TO_DISTANCE(int UNIV_D_SET, int UNIV_A_SET) {
-		if((CONTROL_GYRO->GetAngle() <= (UNIV_A_SET - 2)) && DISTANCE < UNIV_D_SET) {
-			MOTOR_LM->Set(ControlMode::Velocity, 0.15);
-			MOTOR_RM->Set(ControlMode::Velocity, -0.15);
-		} else if((CONTROL_GYRO->GetAngle() >= (UNIV_A_SET + 2)) && DISTANCE < UNIV_D_SET) {
-			MOTOR_LM->Set(ControlMode::Velocity, 0.15);
-			MOTOR_RM->Set(ControlMode::Velocity, -0.15);
-		} else if((CONTROL_GYRO->GetAngle() > (UNIV_A_SET - 2) || CONTROL_GYRO->GetAngle() < (UNIV_A_SET + 2)) && DISTANCE < UNIV_D_SET) {
-			MOTOR_LM->Set(ControlMode::Velocity, 0.15);
-			MOTOR_RM->Set(ControlMode::Velocity, -0.15);
+
+	bool DRIVE_TO_DISTANCE(int UNIV_D_SET) {
+		//TODO
+		//CONVERT FIELD DIMENSIONS TO METRES
+		const int TOLERANCE = 1024;
+		bool DONE_DRIVING;
+
+		if((MOTOR_LM->GetSelectedSensorPosition(1) < UNIV_D_SET - TOLERANCE) && (MOTOR_RM->GetSelectedSensorPosition(1) < UNIV_D_SET - TOLERANCE)) {
+			MOTOR_LM->Set(ControlMode::Position, (UNIV_D_SET/CIRCUMFERENCE) * ROT_TICKS);
+			MOTOR_RM->Set(ControlMode::Position, (UNIV_D_SET/CIRCUMFERENCE) * ROT_TICKS);
+			DONE_DRIVING = false;
 		} else {
-			MOTOR_LM->Set(ControlMode::Velocity, 0.15);
-			MOTOR_RM->Set(ControlMode::Velocity, -0.15);
+			MOTOR_LM->Set(ControlMode::Velocity, 0.0);
+			MOTOR_RM->Set(ControlMode::Velocity, 0.0);
+			DONE_DRIVING = true;
 		}
-		return true;
+		return DONE_DRIVING;
+
+		//AND FIX THIS LATER, PLEASE
 	}
+
+	//BAC: I suggest a different name for this function.
+	//It sets up the segments for the autonomous mode distance
+	// and turn, based on which location we are at on the field,
+	//and based on where on the field the robot is.
+	//Suggest something like: AutoSegmentsSetup
 	void SWITCH_SCALE (string POSITION) {
-		boolean LLL = false;
-		boolean RRR = false;
-		boolean LRL = false;
-		boolean RLR = false;
-		if(ALLIED_POS_INIT.find("LLL")){
+		bool LLL = false;
+		bool RRR = false;
+		bool LRL = false;
+		bool RLR = false;
+		int SWITCH_POS = 0;
+		ALLIED_POS_INIT = POSITION;
+		if(ALLIED_POS_INIT.find("LLL") != string::npos) {
 			LLL = true;
-		} else if((ALLIED_POS_INIT.find("RRR")){
+			//TODO
+			//npos CORRESPONDS TO "NOTHING FOUND", FLIP LOGIC?
+		} else if(ALLIED_POS_INIT.find("RRR") == string::npos) {
 			RRR = true;
-		} else if(ALLIED_POS_INIT.find("LRL"){
+		} else if(ALLIED_POS_INIT.find("LRL") == string::npos) {
 			LRL = true;
-		} else if(ALLIED_POS_INIT.find("RLR"){
+		} else if(ALLIED_POS_INIT.find("RLR") == string::npos) {
 			RLR = true;
 		}
-		if(LLL||RRR||LRL||RLR){
+		if(LLL||RRR||LRL||RLR){ //BAC: This If-statement is unecessary
+			//because all of the cases are covered below. I suggest
+			//removing the first if-statement, and then adding an Else case at the very end
 			if(LLL){
-			SWITCH_1 = 0;
-			SWITCH_2 = 0;
+			SWITCH_POS = 0;
 			}
 			if(RRR){
-			SWITCH_1 = 1;
-			SWITCH_2 = 1;
+			SWITCH_POS = 1;
 			}
 			if(LRL){
-			SWITCH_1 = 0;
-			SWITCH_2 = 0;
+			SWITCH_POS = 0;
 			}
 			if(RLR){
-			SWITCH_1 = 1;
-			SWITCH_2 = 1;
+			SWITCH_POS = 1;
 			}
+			//BAC: suggest adding an else case
 		}
-		switch (SWITCH_1) {
-		case 0:
-			switch (SWITCH_2) {
-			case 0:
+		switch (SWITCH_POS) {
+		//SWITCH_POS is the variable determining switch position, left or right
+		case LEFT_FIELD:
+			switch (FIELD_POS) {
+			//FIELD_POS is the variable determining robot position on the field , left, center, middle
+			case ROB_ON_LEFT:
+				//SWITCH AND CASE VALUES HAVE NO MEANING (YET)
 				Segments[0]->DIST = 1;
 				Segments[0]->ANGLE = 90;
 				Segments[1]->DIST = 2;
 				Segments[1]->ANGLE = 270;
 				break;
-			case 1:
+			case ROB_ON_CENTER:
 				Segments[0]->DIST = 1;
 				Segments[0]->ANGLE = 90;
 				Segments[1]->DIST = 2;
 				Segments[1]->ANGLE = 270;
 				break;
-			case 2:
+			case ROB_ON_RIGHT:
 				Segments[0]->DIST = 1;
 				Segments[0]->ANGLE = 90;
 				Segments[1]->DIST = 2;
@@ -308,21 +350,21 @@ public:
 				break;
 			}
 			break;
-		case 1:
-			switch (SWITCH_2) {
-			case 0:
+		case RIGHT_FIELD:
+			switch (FIELD_POS) {
+			case ROB_ON_LEFT:
 				Segments[0]->DIST = 1;
 				Segments[0]->ANGLE = 90;
 				Segments[1]->DIST = 2;
 				Segments[1]->ANGLE = 270;
 				break;
-			case 1:
+			case ROB_ON_CENTER:
 				Segments[0]->DIST = 1;
 				Segments[0]->ANGLE = 90;
 				Segments[1]->DIST = 2;
 				Segments[1]->ANGLE = 270;
 				break;
-			case 2:
+			case ROB_ON_RIGHT:
 				Segments[0]->DIST = 1;
 				Segments[0]->ANGLE = 90;
 				Segments[1]->DIST = 2;
@@ -348,10 +390,17 @@ public:
 		GEARBOX_R->Set(DoubleSolenoid::kOff);
 	}
 	void AutonomousInit() override {
-		ALLIANCE = std::to_string(DS->GetInstance().GetAlliance());
+		ALLIANCE = to_string(DS->GetInstance().GetAlliance());
 		SmartDashboard::PutString("ALLIANCE_COLOR", "ALLIANCE");
 		ALLIED_POS = DriverStation::GetInstance().GetGameSpecificMessage();
-		SWITCH_SCALE(DriverStation::GetInstance().GetGameSpecificMessage());
+		SWITCH_SCALE(ALLIED_POS);
+		//BAC: ALLIED_POS_INIT is a global variable used for the same
+		//purpose, in the SWITCH_SCALE function. Suggest having just one variable
+		//The variable may not need to be global, either:
+		//we get the value here in AutoInit, then we can just pass it
+		// to SWITCH_SCALE. Then I don't think it's used after that.
+		SHIFT_HIGH();
+		DRIVE_STATE = SEG_1;
 
 		AUTO_TIMER->Reset();
 		AUTO_TIMER->Start();
@@ -360,22 +409,34 @@ public:
 	}
 
 	void AutonomousPeriodic() {
-		AUTO_MODE = VISION_DATA->GetNumber("AUTO_MODE", 0);
-		NAVX_GRYO = PHYSIX->GetAngle() + 180;
-		ADX_GRYO = CONTROL_GYRO->GetAngle() + 180;
-		COMPOSITE_GYRO = ((NAVX_GRYO + ADX_GRYO)/2);
 		AUTO_RANGE = RIO_ULTRASONIC->GetAverageValue();
 		//SELECTION BASED ON SWITCH POSTION, OR ROBOT POSITION
 		//IS_TRACKING WILL NEED TO BE RETRIEVED FROM NETWORKTABLES
 		//TIME WILL NEED TO BE SENT TO JEFF ALONG WITH CURRENT DISTANCE
-		if(!IS_TRACKING) {
-			if(DRIVESTATE) {
-				DRIVE_TO_DISTANCE(Segments[0]->DIST, Segments[0]->ANGLE);
-			} else {
-				TURN_TO_ANGLE(Segments[1]->ANGLE);
-			}
-		} else if (IS_TRACKING) {
+		float ANGEL;
+		VISION_DATA->PutNumber("TIME", AUTO_TIMER->Get());
+		VISION_DATA->PutNumber("DISTANCE", ULTRA_VOLT_TO_MM * RIO_ULTRASONIC->GetAverageVoltage());
+		ANGEL = VISION_DATA->GetNumber("ANGLE", -1);
+		IS_TRACKING = VISION_DATA->GetBoolean("TRACKING", false);
 
+		bool DONE_DRIVING = false;
+		bool DONE_TURNING = false;
+
+		if(!IS_TRACKING) {
+			DONE_DRIVING = DRIVE_TO_DISTANCE(Segments[DRIVE_STATE]->DIST);
+			if (DONE_DRIVING) {
+				DONE_TURNING = TURN_TO_ANGLE(Segments[DRIVE_STATE]->ANGLE);
+			}
+			if (DONE_DRIVING && DONE_TURNING) {
+				DRIVE_STATE ++;
+			}
+		} else {
+			DONE_TURNING = TURN_TO_ANGLE(ANGEL);
+			if(DONE_TURNING) {
+				DRIVE_TO_DISTANCE(ULTRA_VOLT_TO_MM * RIO_ULTRASONIC->GetAverageValue() - 0.125);
+			} else {
+//TODO FIND SOMETHING FOR HERE OR
+			}
 		}
 	}
 
@@ -397,7 +458,20 @@ public:
 		if (LEFT_JOYSTICK->GetRawButton(2)) {
 			SHIFT_LOW();
 		}
-
+		if(LEFT_JOYSTICK->GetRawButton(10)) {
+			ELEVATOR_ELEV_1->Set(ControlMode::Disabled, 0);
+			ELEVATOR_ELEV_2->Set(ControlMode::Disabled, 0);
+			//ELEVATOR_ELEV_1->boo
+			WINCH_ELEV_1->Set(ControlMode::Velocity, RIGHT_JOYSTICK->GetY());
+			WINCH_ELEV_2->Set(ControlMode::Velocity, RIGHT_JOYSTICK->GetY());
+		}
+		if(LEFT_JOYSTICK->GetRawAxis(9)) {
+			ELEVATOR_ELEV_1->Set(ControlMode::Velocity, RIGHT_JOYSTICK->GetY());
+			ELEVATOR_ELEV_2->Set(ControlMode::Velocity, RIGHT_JOYSTICK->GetY());
+			WINCH_ELEV_1->Set(ControlMode::Disabled, 0);
+			WINCH_ELEV_2->Set(ControlMode::Disabled, 0);
+		}
+		ELEVATOR_ELEV_1->Set(ControlMode::Velocity, 10);
 		NAVX_GRYO = PHYSIX->GetAngle();
 		ADX_GRYO = CONTROL_GYRO->GetAngle();
 		COMPOSITE_GYRO = ((NAVX_GRYO + ADX_GRYO)/2);
@@ -407,8 +481,8 @@ public:
 
 		RIO_ULTRASONIC->GetAverageValue();
 
-		SmartDashboard::PutNumber("RPMS_L",  MOTOR_ENCODER_L->GetRate());
-		SmartDashboard::PutNumber("RPMS_R",  MOTOR_ENCODER_R->GetRate());
+		SmartDashboard::PutNumber("RPMS_L", L_VELOCITY);
+		SmartDashboard::PutNumber("RPMS_R", R_VELOCITY);
 		SmartDashboard::PutNumber("ADX_OUTPUT", CONTROL_GYRO->GetAngle());
 		SmartDashboard::PutNumber("NAVX_OUTPUT", PHYSIX->GetAngle());
 		SmartDashboard::PutNumber("COMPOSITE_OUTPUT", COMPOSITE_GYRO);
