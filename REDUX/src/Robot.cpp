@@ -18,27 +18,28 @@
 #include "ctre/Phoenix.h"
 #include "AHRS.h"
 #include <networktables/NetworkTable.h>
+#include <networktables/NetworkTableInstance.h>
 #include <string>
 using namespace std;
 class Robot : public frc::IterativeRobot {
 public:
+	//Creates three Leg_Data structs as writable segments for use in autonomous control.
 	struct Leg_Data{
 		int DIST;
 		int ANGLE;
 	}*Segments[3];
-	//DESIGNATES THREE Leg_Data structs AS WRITABLE SEGMENTS FOR AUTONOMOUS CONTROL
+	//For tracking the current segment during autonomous.
 	enum segmentState{
 		SEG_1 = 0,
 		SEG_2 = 1,
 		SEG_3 = 2,
 	};
-	//TRACKING WHICH SEGMENT THE ROBOT IS EXECUTING
+	//Designates the left/right field sides as an enum for intuitiveness.
 	enum switchpositionValues{
 		LEFT_FIELD = 0,
 		RIGHT_FIELD = 1,
 	};
-	//MAPPING JOYSTICK CONTROLS TO VARIOUS FUNCTIONS
-	//FOR BOTH RIGHT AND LEFT STICK
+	//Creates enum values for the joysticks for intuitiveness.
 	enum rightJoystickMap{
 		INTAKE = 1,
 		GEAR_CHANGE = 2,
@@ -52,45 +53,54 @@ public:
 		WINCH = 6,
 	};
 
-	//VALUES FOR TRACKING WHICH SIDE OF THE FIELD THE SWITCH IS ON
+	//Creates enum values based on robot positioning for use in autonomous.
 	enum ROBOT_STARTING_POS{
 		ROB_ON_LEFT = 0,
 		ROB_ON_CENTER = 1,
 		ROB_ON_RIGHT = 2,
 	};
-	//DESIGNATES CONTROL STATES FOR AUTONOMOUS SCHEDULING
-		//REGULATORY VALUES
 	bool isTracking;
 	bool isHighGear;
 	bool soloTest;
 	int autoMode;
 	int fieldPos;
-		//CONTROL VALUES
-	double cameraError;		//POSTIVE IS NEGATIVE, RIGHT IS POSITIVE
+	//Returns an angle from the TX1 calculations.
+	//Should be in degrees of error from the geometric center of the target.
+	double cameraError;
+	//Angle setpoint for turning in autonomous.
 	double gyroSetpoint;
-	double navxGyro;		//OUTPUT FROM THE NAVX
-	double rioGyro;			//OUTPUT FROM THE SPI GYROSCOPE
-	double combinedGyroValue;	//AVERAGED VALUE OF GYROSCOPES
-	double leftVelocity;		//VELOCITY OF THE ENCODERS IN TICKS
-	double rightVelocity;
-	double elevatorPos;
-	double throttle;
-	double steer;
-	double autonomousAngleSet;			//UNIVERSAL ANGLE TARGET
-	double autonomousDistanceSet;		//UNIVERSAL DISTANCE TARGET
+	//Gyroscope output of the AHRS NAVX board.
+	double navxGyro;
+	//Output from the ADX SPI port gyroscope.
+	double rioGyro;
+	//Averaged value of both gyroscopes.
+	double combinedGyroValue;
+	double robotThrottle;
+	double robotSteer;
+	double elevatorThrottle;
+	//Variable for use in the TURN_TO_ANGLE function as the setpoint.
+	double autonomousAngleSet;
+	//Variable for use in the DRIVE_TO_DISTANCE function as the setpoint.
+	double autonomousDistanceSet;
 	double autonomousRange;
-	int driveState;						//CONTROL VALUE FOR CONTROLING AUTONOMOUS DRIVING, WHEN TO DRIVE FOWARD AND TURN
+	//Control variable used for scheduling which "segment" to carry out.
+	//Whether it be turning, or driving forward.
+	int driveState;
+	//String given by the DriverStation/FMS, gives color of allied alliance.
 	string allianceColor;
-		//DON'T TOUCH ME VALUES
-	const float valveWait = 0.25;				//TIME TO WAIT FOR AIR TO FLOW TO SOLENOIDS
-	const float encoderRotTick = 4096.0;		//4096 "TICKS" PER ROTATION ACCORDING TO MAGNETIC ENCODER SPECS
+	//Quarter second wait time to allow air to flow through the system and shift the gears.
+	const float valveWait = 0.25;
+	//Proprietary unit for each Encoder rotation, 4096 units per rotation.
+	const float encoderRotTick = 4096.0;
 	const float PI = 3.1415;
+	//Calculation of circumference, used for autonomous driving control.
 	const float circumference = (PI*6.0);
-	const float ultrasonicConversion = 5000/4.88;	//5000 MM PER 4.88 VOLTAGE ACCORDING TO ULTRASONIC SPECS
+	//Calculation of converting returned ultrasonic sensor voltage to meaningful value.
+	const float ultrasonicConversion = 5000/4.88;
+	//Ratio of gears from Encoder to actual driveshaft.
 	const float gearRatio = (2.0/15.0);
-
-		//TEMP
-		//CANTALON OBJECTS
+	//Talons are arranged in a Master/Slave order when appropriate.
+	//Otherwise standalone.
 	TalonSRX *leftMasterMotor;
 	TalonSRX *leftSlaveMotor;
 	TalonSRX *rightMasterMotor;
@@ -103,41 +113,37 @@ public:
 	TalonSRX *elevatorSlaveMotor;
 	TalonSRX *actuatorMotor;
 	TalonSRX *theLonelyMotor;
-		//SOLENOIDS
 	DoubleSolenoid *gearBox;
-		//SENSOR INPUTS
+	//Analog ultrasonic sensor plugged into the Roborio.
 	AnalogInput *roborioUltrasonic;
-	ADXRS450_Gyro *ADXGyro;			//NAMING IS ACCORDING TO THE PART NAME
-	AHRS *NAVXBoard;				//NAVX MXP NAVIGATION/SENSOR BOARD
-		//MISC
+	//The SPI port gyroscope, designated by name.
+	ADXRS450_Gyro *ADXGyro;
+	//NAVX sensor and navigation board.
+	AHRS *NAVXBoard;
 	Timer *autonomousTimer;
 	Joystick *leftJoystick;
 	Joystick *rightJoystick;
 	DriverStation *driverStation;
-
-	shared_ptr<nt::NetworkTable> networkTableData;
+	//NetworkTable to pass data to/from the TX1 and Roborio.
+	NetworkTable *networkTableData;
 
 
 	void RobotInit() {
-				//VALUE SETUP
-			//REGULATORY VALUES
 		isTracking = false;
+		soloTest = true;
+		isHighGear = false;
 		autoMode = 0;
 		fieldPos = 0;
-			//CONTROL VALUES
 		gyroSetpoint = 0;
 		navxGyro = 0;
 		rioGyro = 0;
 		combinedGyroValue = 0;
-		throttle = 0;
-		steer = 0;
-		autonomousAngleSet = 0;		//THIS IS THE UNIVERSAL ANGLE SETPOINT FOR AUTO
+		robotThrottle = 0;
+		robotSteer = 0;
+		autonomousAngleSet = 0;
 		autonomousRange= 0;
 		allianceColor = "";
-			//TEMP
 
-				//PERIPHERAL AND CONTROL SETUP
-			//TALONSRX
 		leftMasterMotor = new TalonSRX(1);
 		leftSlaveMotor = new TalonSRX(2);
 		rightMasterMotor = new TalonSRX(3);
@@ -150,9 +156,10 @@ public:
 		elevatorSlaveMotor = new TalonSRX(10);
 		actuatorMotor = new TalonSRX(11);
 		theLonelyMotor = new TalonSRX(12);
-			//SOLENOIDS
+
 		gearBox = new DoubleSolenoid(2, 1);
-			//NAVX CONNECTION ATTEMPT
+		//This try/catch should connect the NAVX.
+		//Will spit out an error message if failed.
         try {
             NAVXBoard = new AHRS(SPI::Port::kMXP);
         } catch (exception failure ) {
@@ -166,10 +173,15 @@ public:
 		ADXGyro = new ADXRS450_Gyro();
 		roborioUltrasonic = new AnalogInput(0);
 		autonomousTimer = new Timer();
-		ADXGyro->Calibrate();
 
 			//INITIAL SETPOINTS, CALIB, ETC.
-				//ControlMode::(mode) IS NOW USED TO DETERMINE CONTROL METHOD
+		ADXGyro->Reset();
+		NAVXBoard->Reset();
+		autonomousTimer->Reset();
+		ADXGyro->Calibrate();
+		//ControlMode::(mode) is now used to determing control method.
+		//PercentOutput throttles Talons along -1/1 range.
+		//Follower sets a Talons as a "slave" relative to another.
 		leftMasterMotor->Set(ControlMode::PercentOutput, 0);
 		rightMasterMotor->Set(ControlMode::PercentOutput, 0);
 		leftSlaveMotor->Set(ControlMode::Follower, 1);
@@ -182,25 +194,27 @@ public:
 		elevatorSlaveMotor->Set(ControlMode::Follower, 0);
 		elevatorSlaveMotor->SetInverted(true);
 		actuatorMotor->Set(ControlMode::PercentOutput, 0);
-			//MISC
-				//INTERNAL PID SETUP
-				//SELECTS SENSOR BASED OFF CHANNEL
-				//VERFIY THE DERIVE ID (DEFINED AS pidIdx) VIA THE WEB-CONFIG PAGE, SHOULD BE EITHER 0 OR A 1
+			//INTERNAL PID SETUP
+
+		//The pidxid of the sensor can be found off the configuration of the Roborio.
+		//Should be a 0, multiple id values not supported (yet).
 		leftMasterMotor->GetSelectedSensorVelocity(0);
-				//SELECTS SENSOR BASED OFF CHANNEL
+		//Selects the sensor type and the channel the sensor is communicating on.
 		leftMasterMotor->ConfigSelectedFeedbackSensor(FeedbackDevice::CTRE_MagEncoder_Relative, 0, 10);
-				//SETS UP SENSOR TYPE, PID SLOT (DEFINED AS pidIdx) NUMBER, TIMEOUT
+		//Sets up the sensor type, the sensor ID number, DEFINED AS pidIdx, and timeout period.
+		//Sets the read direction on the Encoders, with Clockwise being positive.
 		leftMasterMotor->SetSensorPhase(true);
-				//DETERMINES READ directionS
+		//Sets up min/max output values for the Talons (are these even nessacary?).
 		leftMasterMotor->ConfigNominalOutputForward(0, 10);
 		leftMasterMotor->ConfigNominalOutputReverse(0, 10);
 		leftMasterMotor->ConfigPeakOutputForward(1, 10);
 		leftMasterMotor->ConfigPeakOutputReverse(-1, 10);
-				//SETS UP THE VARIOUS VALUES IN THE PID SLOT
-		leftMasterMotor->Config_kF(0, 0.375, 10);
-		leftMasterMotor->Config_kP(0, 0.125, 10);
-		leftMasterMotor->Config_kI(0, 0.05, 10);
-		leftMasterMotor->Config_kD(0, 0.05, 10);
+		//Sets up the various PIDF values to tune the motor output.
+		//P = (Desired motor output percentage * 1023)/(error).
+		leftMasterMotor->Config_kF(0, 0.029, 10);
+		leftMasterMotor->Config_kP(0, 0.0, 10);
+		leftMasterMotor->Config_kI(0, 0.0, 10);
+		leftMasterMotor->Config_kD(0, 0.0, 10);
 
 		rightMasterMotor->GetSelectedSensorVelocity(0);
 		rightMasterMotor->ConfigSelectedFeedbackSensor(FeedbackDevice::CTRE_MagEncoder_Relative, 0, 10);
@@ -209,15 +223,15 @@ public:
 		rightMasterMotor->ConfigNominalOutputReverse(0, 10);
 		rightMasterMotor->ConfigPeakOutputForward(1, 10);
 		rightMasterMotor->ConfigPeakOutputReverse(-1, 10);
-		rightMasterMotor->Config_kF(0, 0.375, 10);
-		rightMasterMotor->Config_kP(0, 0.125, 10);
-		rightMasterMotor->Config_kI(0, 0.05, 10);
-		rightMasterMotor->Config_kD(0, 0.05, 10);
+		rightMasterMotor->Config_kF(0, 0.029, 10);
+		rightMasterMotor->Config_kP(0, 0.0, 10);
+		rightMasterMotor->Config_kI(0, 0.0, 10);
+		rightMasterMotor->Config_kD(0, 0.0, 10);
 
 		elevatorMasterMotor->ConfigForwardSoftLimitThreshold(10000, 10);
 		elevatorMasterMotor->ConfigReverseSoftLimitThreshold(-10000, 10);
-		//SOFT LIMITS TO ENSURE THAT ELEATOR SYSTEM DOES NOT BREAK THINGS
-		//UNITS ARE IN NATIVE UNITS, 4096 PER ROTATION
+		//Setting up of soft limits, essentially a min/max movement range for the elevator mechanism.
+		//The units are defined in CTRE's proprietary units, as in 4096 units per rotation.
 		elevatorMasterMotor->ConfigForwardSoftLimitEnable(true, 10);
 		elevatorMasterMotor->ConfigReverseSoftLimitEnable(true, 10);
 
@@ -225,21 +239,22 @@ public:
 		rightMasterMotor->SetSelectedSensorPosition(0, 0, 10);
 
 
-		NetworkTable::SetServerMode();
-		//SERVER VS CLIENT MODE
-		NetworkTable::SetIPAddress("roborio-6445-frc.local");
-		//SETS THE ROBORIO IP ADDRESS FOR THE JETSON TX1
-		NetworkTable::Initialize();
-		//STARTS UP NETWORK TABLE
-		shared_ptr<nt::NetworkTable> networkTableData = NetworkTable::GetTable("JETSON");
+		//Sets up the Roborio into Server Mode.
+		networkTableData->SetServerMode();
+		//Sets up the Roborio's IP address for the TX1 to communicate on.
+		networkTableData->SetIPAddress("roborio-6445-frc.local");
+		//Initializes the Networktable.
+		networkTableData->Initialize();
+		networkTableData->GetEntry("JETSON");
 	}
-	//INPUT A TURN ANGLE AND ROTATE THE ROBOT AS SUCH
-	//OUTPUT A SUCCESS STATEMENT
+	//Input a turn angle, calculate the position needed, and rotate as such.
+	//Output a success statement.
 	bool TURN_TO_ANGLE (int autonomousAngleSet) {
 		const float inchToMeter = (1.0/39.4);
 		const float drivetrainRadius = 12.5625;
-		//DISTANCE FROM CENTER LINE OF ROBOT TO CENTER OF MIDDLE DRIVE WHEELS, WEST COAST STYLE
-		//4096 "TICKS" PER ROTATION, AS COUNTED BY THE ENCODERS
+		//Distance from the geometric center of the robot to the center contact points of the wheels.
+		//Due to West Coast drive.
+		//There are 4096 ticks in each rotation, as counted by the encoders.
 		const float angletolerance = 2.0;
 		float difference = 0.0;
 		double direction;
@@ -250,11 +265,11 @@ public:
 		bool doneTurning;
 
 		difference = ((abs(autonomousAngleSet - combinedGyroValue)) * (PI/180));
-			//ANGULAR difference IN RADIANS
+		//Angular difference in radians for use in determining direction.
 		distancePerWheel = (drivetrainRadius * inchToMeter * difference);
-			//DISTANCE TO TRAVEL PER WHEEL IN METRES
-			//ESSENTIALLY DIST = RADIUS * THETA
-		direction = ((sin((autonomousAngleSet - combinedGyroValue)))/abs(sin(combinedGyroValue - autonomousAngleSet)));
+		//Distance needed to be traveled by each side of the robot.
+		//Essentially S = r * (theta).
+		direction = ((sin(difference)))/abs(sin(difference));
 
 		SmartDashboard::PutNumber("Distance to Drive", distancePerWheel);
 		SmartDashboard::PutNumber("Direction", direction);
@@ -264,26 +279,36 @@ public:
 			rightMasterMotor->Set(ControlMode::Position, (distancePerWheel/(circumference * inchToMeter)) * encoderRotTick * direction);
 			doneTurning = false;
 		} else {
-			leftMasterMotor->Set(ControlMode::Velocity, 0.0);
-			rightMasterMotor->Set(ControlMode::Velocity, 0.0);
+			leftMasterMotor->Set(ControlMode::PercentOutput, 0.0);
+			rightMasterMotor->Set(ControlMode::PercentOutput, 0.0);
 			doneTurning = true;
 		}
 return doneTurning;
 	}
 
 	bool DRIVE_TO_DISTANCE(int autonomousDistanceSet) {
-		const float tolerance = 0.0625;
 		const float inchToMeter = (1.0/39.4);
-
 		bool doneDriving;
+		if((((gearRatio) * leftMasterMotor->GetSelectedSensorPosition(0)) < ((autonomousDistanceSet/(circumference * inchToMeter)) * encoderRotTick) &&
+				(((gearRatio) * rightMasterMotor->GetSelectedSensorPosition(0)) < ((autonomousDistanceSet/(circumference * inchToMeter)) * encoderRotTick)))) {
+			leftMasterMotor->Set(ControlMode::Position, -(autonomousDistanceSet/(circumference * inchToMeter)) * encoderRotTick);
+			rightMasterMotor->Set(ControlMode::Position, -(autonomousDistanceSet/(circumference * inchToMeter)) * encoderRotTick);
 
-		if((leftMasterMotor->GetSelectedSensorPosition(0) < (autonomousDistanceSet - tolerance)) && (rightMasterMotor->GetSelectedSensorPosition(0) < (autonomousDistanceSet - tolerance))) {
-			leftMasterMotor->Set(ControlMode::Position, (autonomousDistanceSet/(circumference * inchToMeter)) * encoderRotTick);
-			rightMasterMotor->Set(ControlMode::Position, (autonomousDistanceSet/(circumference * inchToMeter)) * encoderRotTick);
+			SmartDashboard::PutNumber("Left Encoder Position", (gearRatio)*(leftMasterMotor->GetSelectedSensorPosition(0)));
+			SmartDashboard::PutNumber("Right Encoder Position", (gearRatio)*(rightMasterMotor->GetSelectedSensorPosition(0)));
+			SmartDashboard::PutNumber("Distance to Drive", (autonomousDistanceSet/(circumference * inchToMeter)) * encoderRotTick);
+			SmartDashboard::PutNumber("Distance in Meters", autonomousDistanceSet);
+			SmartDashboard::PutString("Driving State?", "Currently Moving Forward");
+
 			doneDriving = false;
 		} else {
-			leftMasterMotor->Set(ControlMode::Velocity, 0.0);
-			rightMasterMotor->Set(ControlMode::Velocity, 0.0);
+			leftMasterMotor->Set(ControlMode::PercentOutput, 0.0);
+			rightMasterMotor->Set(ControlMode::PercentOutput, 0.0);
+
+			SmartDashboard::PutNumber("Left Encoder Position", (gearRatio)*(leftMasterMotor->GetSelectedSensorPosition(0)));
+			SmartDashboard::PutNumber("Right Encoder Position", (gearRatio)*(rightMasterMotor->GetSelectedSensorPosition(0)));
+			SmartDashboard::PutString("Driving State?", "Done!");
+
 			doneDriving = true;
 		}
 		return doneDriving;
@@ -299,8 +324,7 @@ return doneTurning;
 		functionPos = position;
 		if(functionPos.find("LLL") != string::npos) {
 			LLL = true;
-			//TODO npos CORRESPONDS TO "NOTHING FOUND", FLIP LOGIC?
-			//PARSE CODE FOR SWITCH/SCALE POSITION FINDING
+			//npos checks for whether the find string exists in the to-be parsed.
 		} else if(functionPos.find("RRR") == string::npos) {
 			RRR = true;
 		} else if(functionPos.find("LRL") == string::npos) {
@@ -321,16 +345,16 @@ return doneTurning;
 		} else {
 			SmartDashboard::PutString("Position State", "Failure to assign state");
 			switchposition = -1;
-			//TODO WRITE DEBUG STATEMENTS
+			//TODO Write debug statements.
 		}
 
 		switch (switchposition) {
-		//switchposition is the variable determining switch position, left or right
+		//switchposition is the variable determining switch position, left or right.
 		case LEFT_FIELD:
 			switch (fieldPos) {
-			//fieldPos is the variable determining robot position on the field , left, center, middle
+			//fieldPos is the variable determining robot position on the field , left, center, middle.
 			case ROB_ON_LEFT:
-				//SWITCH AND CASE VALUES HAVE NO MEANING (YET)
+				//Switch and Case Values have no meaning, yet.
 				Segments[0]->DIST = 1;
 				Segments[0]->ANGLE = 90;
 				Segments[1]->DIST = 2;
@@ -388,26 +412,32 @@ return doneTurning;
 		isHighGear=!isHighGear;
 	}
 	void AutonomousInit() override {
-		allianceColor = to_string(driverStation->GetInstance().GetAlliance());
-		SmartDashboard::PutString("Alliance Color", allianceColor);
-		networkTableData->PutString("Alliance Color", allianceColor);
-		SEGMENT_SELECTION(DriverStation::GetInstance().GetGameSpecificMessage());
+		leftMasterMotor->SetSelectedSensorPosition(0, 0, 10);
+		rightMasterMotor->SetSelectedSensorPosition(0, 0, 10);
+		leftMasterMotor->Set(ControlMode::Position, 0);
+		rightMasterMotor->Set(ControlMode::Position, 0);
 		SHIFT_LOW();
-		isHighGear = false;
-		SHIFT_HIGH();
-		driveState = SEG_1;
+		rightMasterMotor->SetInverted(true);
+		rightSlaveMotor->SetInverted(true);
+		rightMasterMotor->SetSensorPhase(true);
 
 		autonomousTimer->Reset();
 		autonomousTimer->Start();
 		NAVXBoard->Reset();
 		ADXGyro->Reset();
+
+		allianceColor = to_string(driverStation->GetInstance().GetAlliance());
+		SmartDashboard::PutString("Alliance Color", allianceColor);
+		networkTableData->PutString("Alliance Color", allianceColor);
+		SEGMENT_SELECTION(DriverStation::GetInstance().GetGameSpecificMessage());
+		driveState = SEG_1;
 	}
 
 	void AutonomousPeriodic() {
 		autonomousRange = roborioUltrasonic->GetAverageValue();
-		//SELECTION BASED ON SWITCH POSTION, OR ROBOT position
-		//isTracking WILL NEED TO BE RETRIEVED FROM NETWORKTABLES
-		//TIME WILL NEED TO BE SENT TO JEFF ALONG WITH CURRENT DISTANCE
+		//Selection based on switch position, or robotic position.
+		//isTracking will need to be retrieved from networktables.
+		//Time and Ultrasonic Distance will need to be sent to Jeff.
 		float angle;
 		networkTableData->PutNumber("TIME", autonomousTimer->Get());
 		networkTableData->PutNumber("DISTANCE", ultrasonicConversion * roborioUltrasonic->GetAverageVoltage());
@@ -439,26 +469,40 @@ return doneTurning;
 		autonomousTimer->Stop();
 		NAVXBoard->Reset();
 		ADXGyro->Reset();
+
+		leftMasterMotor->Set(ControlMode::PercentOutput, 0);
+		rightMasterMotor->Set(ControlMode::PercentOutput, 0);
+		//This function should aways put us into low gear, regardless of previous gear setting.
+		if(!isHighGear){
+			SHIFT_LOW();
+		}
+		leftMasterMotor->SetSelectedSensorPosition(0, 0, 10);
+		rightMasterMotor->SetSelectedSensorPosition(0, 0, 10);
+		leftMasterMotor->SetInverted(false);
+		leftSlaveMotor->SetInverted(false);
+		rightMasterMotor->SetInverted(false);
+		rightSlaveMotor->SetInverted(false);
+		rightMasterMotor->SetSensorPhase(false);
 	}
 
 	void TeleopPeriodic() {
-		//THRESHHOLDS SHOULD KEEP THE JOYSTICK FROM MOVING ROBOT AS LONG AS INPUT IS < 5%
-		if(rightJoystick->GetY() < 0.05) {
-			throttle = 0;
+		//Thresholds are set to 5% of the Joystick's range.
+		if(abs(rightJoystick->GetY()) < 0.05) {
+			robotThrottle = 0;
 		} else {
-			throttle = rightJoystick->GetY();
+			robotThrottle = rightJoystick->GetY();
 		}
-		if(rightJoystick->GetX() < 0.05) {
-			steer = 0;
+		if(abs(rightJoystick->GetX()) < 0.05) {
+			robotSteer = 0;
 		} else {
-			steer = rightJoystick->GetX();
+			robotSteer = rightJoystick->GetX();
 		}
 
-		leftMasterMotor->Set(ControlMode::PercentOutput, throttle - steer);
-		rightMasterMotor->Set(ControlMode::PercentOutput, -throttle - steer);
+		leftMasterMotor->Set(ControlMode::PercentOutput, robotThrottle - robotSteer);
+		rightMasterMotor->Set(ControlMode::PercentOutput, -robotThrottle - robotSteer);
 		if(rightJoystick->GetRawButton(rightJoystickMap::GEAR_CHANGE) && soloTest) {
-			//soloTest KEEPS THE IF LOOP FROM RUNNING CONTINUOSLY
-			//IF BUTTON IS PRESSED, AND SINCE soloTest IS TRUE, IF LOOP WILL RUN, ONCE
+			//soloTest acts as a single limiter to keep the if/else loop from running indefinitely.
+			//If the button is pressed, and since soloTest is true, state should run the if/else once
 			if(isHighGear) {
 				SHIFT_HIGH();
 			} else if(!isHighGear) {
@@ -495,24 +539,13 @@ return doneTurning;
 		rioGyro = ADXGyro->GetAngle();
 		combinedGyroValue = ((navxGyro + rioGyro)/2);
 
-		leftVelocity = leftMasterMotor->GetSelectedSensorVelocity(1); //*SOME SCALE FACTOR
-		leftVelocity = rightMasterMotor->GetSelectedSensorVelocity(3);
-
 		roborioUltrasonic->GetAverageValue();
 
-		SmartDashboard::PutNumber("RPMS_L", leftVelocity);
-		SmartDashboard::PutNumber("RPMS_R", leftVelocity);
 		SmartDashboard::PutNumber("ADX_OUTPUT", ADXGyro->GetAngle());
 		SmartDashboard::PutNumber("NAVX_OUTPUT", NAVXBoard->GetAngle());
 		SmartDashboard::PutNumber("COMPOSITE_OUTPUT", combinedGyroValue);
 		SmartDashboard::PutNumber("RANGE", roborioUltrasonic->GetVoltage());
 
-		//MEASURED IN NATIVE UNITS PER 100MS
-		//MUST CONVERT TO REAL UNITS
-		SmartDashboard::PutNumber("Left Encoder Velocity", (gearRatio)*(leftMasterMotor->GetSelectedSensorVelocity(0)));
-		SmartDashboard::PutNumber("Right Encoder Velocity", (gearRatio)*(rightMasterMotor->GetSelectedSensorVelocity(0)));
-		SmartDashboard::PutNumber("Left Encoder Position", (gearRatio)*(leftMasterMotor->GetSelectedSensorPosition(0)));
-		SmartDashboard::PutNumber("Right Encoder Position", (gearRatio)*(rightMasterMotor->GetSelectedSensorPosition(0)));
 		frc::Wait(0.005);
 	}
 
