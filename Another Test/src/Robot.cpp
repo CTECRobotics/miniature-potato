@@ -193,9 +193,11 @@ public:
 			leftSlaveMotor->SetInverted(false);
 			leftMasterMotor->SetSensorPhase(false);
 		}
-		if(((direction == 1) && (combinedGyroValue < autonomousAngleSet))
-				|| ((direction == -1) && (combinedGyroValue > autonomousAngleSet))) {
+		if(((direction == 1) && (combinedGyroValue < autonomousAngleSet))) {
 			leftMasterMotor->Set(ControlMode::MotionMagic, (direction * (distancePerWheel/(circumference)) * encoderRotTick));
+			rightMasterMotor->Set(ControlMode::MotionMagic, -(direction * -(distancePerWheel/(circumference)) * encoderRotTick));
+		} else if(((dirrection == -1) && (combinedGyroValue < autonomousAngleSet))) {
+			leftMasterMotor->Set(ControlMode::MotionMagic, -(direction * (distancePerWheel/(circumference)) * encoderRotTick));
 			rightMasterMotor->Set(ControlMode::MotionMagic, -(direction * -(distancePerWheel/(circumference)) * encoderRotTick));
 		} else {
 			leftMasterMotor->Set(ControlMode::PercentOutput, 0);
