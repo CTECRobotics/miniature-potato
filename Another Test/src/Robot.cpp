@@ -88,9 +88,12 @@ public:
 		leftMasterMotor->ConfigPeakOutputForward(1, 10);
 		leftMasterMotor->ConfigPeakOutputReverse(-1, 10);
 		leftMasterMotor->Config_kF(0, 0.0, 10);
-		leftMasterMotor->Config_kP(0, 0.029, 10);
+		leftMasterMotor->Config_kP(0, 0.0075, 10);
 		leftMasterMotor->Config_kI(0, 0.0, 10);
-		leftMasterMotor->Config_kD(0, 0.0, 10);
+		leftMasterMotor->Config_kD(0, 0.50, 10);
+		//Sets up the acceleration and cruise velocity for the MotionMagic Control.
+		leftMasterMotor->ConfigMotionCruiseVelocity(2048, 10);
+		leftMasterMotor->ConfigMotionAcceleration(1024, 10);
 
 		rightMasterMotor->GetSelectedSensorVelocity(0);
 		rightMasterMotor->ConfigSelectedFeedbackSensor(FeedbackDevice::CTRE_MagEncoder_Relative, 0, 10);
@@ -101,9 +104,11 @@ public:
 		rightMasterMotor->ConfigPeakOutputForward(1, 10);
 		rightMasterMotor->ConfigPeakOutputReverse(-1, 10);
 		rightMasterMotor->Config_kF(0, 0.0, 10);
-		rightMasterMotor->Config_kP(0, 0.029, 10);
+		rightMasterMotor->Config_kP(0, 0.0075, 10);
 		rightMasterMotor->Config_kI(0, 0.0, 10);
-		rightMasterMotor->Config_kD(0, 0.0, 10);
+		rightMasterMotor->Config_kD(0, 0.50, 10);
+		rightMasterMotor->ConfigMotionCruiseVelocity(2048, 10);
+		rightMasterMotor->ConfigMotionAcceleration(1024, 10);
 
 		autonomousTimer->Reset();
 
@@ -120,41 +125,82 @@ public:
 		gearBox->Set(DoubleSolenoid::kOff);
 		isHighGear=!isHighGear;
 	}
-	void TURN_TO_ANGLE (double autonomousAngleSet) {
+	void DRIVE_TO_DISTANCE(int autonomousDistanceSet) {
+		rightMasterMotor->SetInverted(true);
+		rightSlaveMotor->SetInverted(true);
+		rightMasterMotor->SetSensorPhase(true);
+
 		const float inchToMeter = (1.0/39.4);
-		const float drivetrainRadius = 12.5625;
-		const float angletolerance = 2.0;
-		float difference = 0.0;
-		float distancePerWheel = 0;
-		double direction;
-		navxGyro = NAVXBoard->GetAngle();
-		rioGyro = ADXGyro->GetAngle();
-		combinedGyroValue = ((navxGyro + rioGyro)/2);
+		if((((gearRatio) * leftMasterMotor->GetSelectedSensorPosition(0)) < (((autonomousDistanceSet - 0.15)/(circumference * inchToMeter)) * encoderRotTick) &&
+				(((gearRatio) * rightMasterMotor->GetSelectedSensorPosition(0)) < (((autonomousDistanceSet - 0.15)/(circumference * inchToMeter)) * encoderRotTick)))) {
+			leftMasterMotor->Set(ControlMode::Position, -(autonomousDistanceSet/(circumference * inchToMeter)) * encoderRotTick);
+			rightMasterMotor->Set(ControlMode::Position, -(autonomousDistanceSet/(circumference * inchToMeter)) * encoderRotTick);
 
-		//Where a positive difference is left, negative being right.
-		difference = (((-combinedGyroValue + autonomousAngleSet)) * (PI/180));
-		//Angular difference in radians for use in determining direction.
-		distancePerWheel = (drivetrainRadius * inchToMeter * abs(difference));
-		//Distance needed to be traveled by each side of the robot.
-		//Essentially S = r * (theta).
-		direction = ((sin(difference))/abs(sin(difference)));
+			SmartDashboard::PutNumber("Left Encoder Position", (gearRatio)*(leftMasterMotor->GetSelectedSensorPosition(0)));
+			SmartDashboard::PutNumber("Right Encoder Position", (gearRatio)*(rightMasterMotor->GetSelectedSensorPosition(0)));
+			SmartDashboard::PutNumber("Distance to Drive", (autonomousDistanceSet/(circumference * inchToMeter)) * encoderRotTick);
+			SmartDashboard::PutNumber("Distance in Meters", autonomousDistanceSet);
+			SmartDashboard::PutString("Driving State?", "Currently Moving Forward");
 
-		if((combinedGyroValue > (autonomousAngleSet - angletolerance)) &&
-				(combinedGyroValue < (autonomousAngleSet + angletolerance))) {
-			leftMasterMotor->Set(ControlMode::Position, -(distancePerWheel/(circumference * inchToMeter)) * encoderRotTick * direction);
-			rightMasterMotor->Set(ControlMode::Position, (distancePerWheel/(circumference * inchToMeter)) * encoderRotTick * direction);
-			SmartDashboard::PutString("Turning State", "Turning!");
-			SmartDashboard::PutNumber("Angle Set Point", autonomousAngleSet);
 		} else {
 			leftMasterMotor->Set(ControlMode::PercentOutput, 0.0);
 			rightMasterMotor->Set(ControlMode::PercentOutput, 0.0);
-			SmartDashboard::PutString("Turning State", "Done!");
+
+			SmartDashboard::PutNumber("Left Encoder Position", (gearRatio)*(leftMasterMotor->GetSelectedSensorPosition(0)));
+			SmartDashboard::PutNumber("Right Encoder Position", (gearRatio)*(rightMasterMotor->GetSelectedSensorPosition(0)));
+			SmartDashboard::PutString("Driving State?", "Done!");
+
 		}
-		SmartDashboard::PutNumber("Distance Per Wheel, Meters", distancePerWheel);
-		SmartDashboard::PutNumber("Distance Per Wheel, Units", ((distancePerWheel/(circumference * inchToMeter)) * encoderRotTick * direction));
-		SmartDashboard::PutNumber("Difference", difference);
-		SmartDashboard::PutNumber("Direction", direction);
-		SmartDashboard::PutNumber("Current Angle", combinedGyroValue);
+	}
+	void TURN_TO_ANGLE (int autonomousAngleSet) {
+		//Distance from the geometric center of the robot to the center contact points of the wheels.
+		//Due to West Coast drive.
+		const float drivetrainRadius = 12.5625;
+		float difference = 0.0;
+		double direction;
+		float distancePerWheel = 0;
+		navxGyro = NAVXBoard->GetAngle();
+		rioGyro = ADXGyro->GetAngle();
+		combinedGyroValue = ((navxGyro + rioGyro)/2);
+		leftMasterMotor->Config_kP(0, 0.029, 10);
+		leftMasterMotor->Config_kI(0, 0.0, 10);
+		leftMasterMotor->Config_kD(0, 0.00015, 10);
+		leftMasterMotor->Config_kF(0, 0.125, 10);
+		rightMasterMotor->Config_kP(0, 0.029, 10);
+		rightMasterMotor->Config_kI(0, 0.0, 10);
+		rightMasterMotor->Config_kD(0, 0.00015, 10);
+		rightMasterMotor->Config_kF(0, 0.125, 10);
+
+		difference = (((autonomousAngleSet - combinedGyroValue)) * (PI/180));
+		//Angular difference in radians for use in determining direction.
+		distancePerWheel = abs(drivetrainRadius * difference);
+		//Distance needed to be traveled by each side of the robot.
+		//Essentially S = r * (theta).
+		direction = ((sin(difference)))/abs(sin(difference));
+		if(direction == 1){
+			rightMasterMotor->SetInverted(true);
+			rightSlaveMotor->SetInverted(true);
+			rightMasterMotor->SetSensorPhase(true);
+			leftMasterMotor->SetInverted(true);
+			leftSlaveMotor->SetInverted(true);
+			leftMasterMotor->SetSensorPhase(true);
+		}
+		if(direction == -1){
+			rightMasterMotor->SetInverted(false);
+			rightSlaveMotor->SetInverted(false);
+			rightMasterMotor->SetSensorPhase(false);
+			leftMasterMotor->SetInverted(false);
+			leftSlaveMotor->SetInverted(false);
+			leftMasterMotor->SetSensorPhase(false);
+		}
+		if(((direction == 1) && (combinedGyroValue < autonomousAngleSet))
+				|| ((direction == -1) && (combinedGyroValue > autonomousAngleSet))) {
+			leftMasterMotor->Set(ControlMode::MotionMagic, (direction * (distancePerWheel/(circumference)) * encoderRotTick));
+			rightMasterMotor->Set(ControlMode::MotionMagic, -(direction * -(distancePerWheel/(circumference)) * encoderRotTick));
+		} else {
+			leftMasterMotor->Set(ControlMode::PercentOutput, 0);
+			rightMasterMotor->Set(ControlMode::PercentOutput, 0);
+		}
 	}
 	void AutonomousInit() override {
 		leftMasterMotor->SetSelectedSensorPosition(0, 0, 10);
@@ -162,9 +208,10 @@ public:
 		leftMasterMotor->Set(ControlMode::Position, 0);
 		rightMasterMotor->Set(ControlMode::Position, 0);
 		SHIFT_LOW();
-		rightMasterMotor->SetInverted(true);
-		rightSlaveMotor->SetInverted(true);
-		rightMasterMotor->SetSensorPhase(true);
+		rightMasterMotor->SetInverted(false);
+		rightSlaveMotor->SetInverted(false);
+		rightMasterMotor->SetSensorPhase(false);
+
 
 		autonomousTimer->Reset();
 		autonomousTimer->Start();
@@ -175,7 +222,8 @@ public:
 	void AutonomousPeriodic() {
 
 		if(autonomousTimer->Get() < 15.0) {
-			TURN_TO_ANGLE(-90.0);
+			TURN_TO_ANGLE(90.0);
+//			DRIVE_TO_DISTANCE(2)	;
 			SmartDashboard::PutNumber("Time", autonomousTimer->Get());
 			SmartDashboard::PutNumber("LM Output", leftMasterMotor->GetMotorOutputPercent());
 			SmartDashboard::PutNumber("RM Output", rightMasterMotor->GetMotorOutputPercent());
@@ -197,6 +245,7 @@ public:
 		rightMasterMotor->SetInverted(false);
 		rightSlaveMotor->SetInverted(false);
 		rightMasterMotor->SetSensorPhase(false);
+		leftMasterMotor->SetSensorPhase(true);
 		NAVXBoard->Reset();
 		ADXGyro->Reset();
 
@@ -227,10 +276,13 @@ public:
 		if(!rightJoystick->GetRawButton(2)) {
 			soloTest = true;
 		}
+
+		//TODO Create ludicrous mode, but don't tell J03.
 		navxGyro = NAVXBoard->GetAngle();
 		rioGyro = ADXGyro->GetAngle();
 		combinedGyroValue = ((navxGyro + rioGyro)/2);
-
+		SmartDashboard::PutNumber("Left Position", leftMasterMotor->GetSelectedSensorPosition(0));
+		SmartDashboard::PutNumber("Right Position", rightMasterMotor->GetSelectedSensorPosition(0));
 		SmartDashboard::PutNumber("ADX_OUTPUT", ADXGyro->GetAngle());
 		SmartDashboard::PutNumber("NAVX_OUTPUT", NAVXBoard->GetAngle());
 		SmartDashboard::PutNumber("COMPOSITE_OUTPUT", combinedGyroValue);
