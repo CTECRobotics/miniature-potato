@@ -1,0 +1,72 @@
+		switch (switchposition) {
+		//switchposition is the variable determining switch position, left or right.
+		//Switch on the left side.
+		case LEFT_FIELD:
+			switch (fieldPos) {
+			//fieldPos is the variable determining robot position on the field , left, center, middle.
+			case BOT_ON_LEFT:
+				//Switch and Case Values have no meaning, yet.
+				Segments[0]->DIST = 95.0;
+				Segments[0]->ANGLE = -90.0;
+				Segments[1]->DIST = 24.0;
+				Segments[1]->ANGLE = 0.0;
+				Segments[2]->DIST = 0.0;
+				Segments[2]->ANGLE = Segments[1]->ANGLE;
+				break;
+			case BOT_ON_CENTER:
+				Segments[0]->DIST = 95.0;
+				Segments[0]->ANGLE = -90.0;
+				Segments[1]->DIST = 36.0;
+				Segments[1]->ANGLE = 0.0;
+				Segments[2]->DIST = 0.0;
+				Segments[2]->ANGLE = Segments[1]->ANGLE;
+				break;
+			case BOT_ON_RIGHT:
+				Segments[0]->DIST = 95.0;
+				Segments[0]->ANGLE = -90.0;
+				Segments[1]->DIST = 48.0;
+				Segments[1]->ANGLE = 0.0;
+				Segments[2]->DIST = 0.0;
+				Segments[2]->ANGLE = Segments[1]->ANGLE;
+				break;
+			}
+			break;
+			//Switch on the right side.
+		case RIGHT_FIELD:
+			switch (fieldPos) {
+			case BOT_ON_LEFT:
+				Segments[0]->DIST = 95.0;
+				Segments[0]->ANGLE = 90.0;
+				Segments[1]->DIST = 12.0;
+				Segments[1]->ANGLE = 0.0;
+				Segments[2]->DIST = 0.0;
+				Segments[2]->ANGLE = Segments[1]->ANGLE;
+				break;
+			case BOT_ON_CENTER:
+				Segments[0]->DIST = 95.0;
+				Segments[0]->ANGLE = 90.0;
+				Segments[1]->DIST = 24.0;
+				Segments[1]->ANGLE = 0.0;
+				Segments[2]->DIST = 0.0;
+				Segments[2]->ANGLE = Segments[1]->ANGLE;
+				break;
+			case BOT_ON_RIGHT:
+				Segments[0]->DIST = 95.0;
+				Segments[0]->ANGLE = 90.0;
+				Segments[1]->DIST = 36.0;
+				Segments[1]->ANGLE = 0.0;
+				Segments[2]->DIST = 0.0;
+				Segments[2]->ANGLE = Segments[1]->ANGLE;
+				break;
+			}
+			break;
+		case FAILURE:
+				Segments[0]->DIST = 0.0;
+				Segments[0]->ANGLE = 0.0;
+				Segments[2]->DIST = 0.0;
+				Segments[1]->ANGLE = 0.0;
+				Segments[2]->DIST = 0.0;
+				Segments[2]->ANGLE = 0.0;
+
+			break;
+}
