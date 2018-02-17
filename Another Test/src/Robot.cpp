@@ -17,25 +17,49 @@
 #include "Ultrasonic.h"
 #include "ctre/Phoenix.h"
 #include "AHRS.h"
-#include <networktables/NetworkTable.h>
+#include <networkTables/NetworkTable.h>
+#include <networktables/NetworkTableInstance.h>
+#include <networktables/NetworkTableEntry.h>
 #include <string>
 using namespace std;
-
+using namespace nt;
 class Robot : public frc::IterativeRobot {
 public:
+	struct Leg_Data{
+		int DIST;
+		int ANGLE;
+	}*Segments[3];
+	enum segmentState{
+		SEG_1 = 0,
+		SEG_2 = 1,
+		SEG_3 = 2,
+	};
+	enum switchpositionValues{
+		LEFT_FIELD = 0,
+		RIGHT_FIELD = 1,
+		FAILURE = -1,
+	};
+	enum ROBOT_STARTING_POS{
+		BOT_ON_LEFT = 0,
+		BOT_ON_CENTER = 1,
+		BOT_ON_RIGHT = 2,
+	};
 	bool isHighGear;
 	bool soloTest;
-	double throttle;
-	double steer;
+	bool targetReached;
 	const float encoderRotTick = 4096.0;		//4096 "TICKS" PER ROTATION ACCORDING TO MAGNETIC ENCODER SPECS
 	const float PI = 3.1415;
 	const float circumference = (PI*6.0);
-	const float ultrasonicConversion = 5000/4.88;	//5000 MM PER 4.88 VOLTAGE ACCORDING TO ULTRASONIC SPECS
 	const float inchToMeter = (1.0/39.4);
 	const float gearRatio = (2.0/15.0);
+	const float motorVelocity = 2048.0;
+	double robotThrottle;
+	double robotSteer;
+	double elevatorThrotte;
 	double navxGyro;
 	double rioGyro;
 	double combinedGyroValue;
+	int fieldPos;
 	TalonSRX *leftMasterMotor;
 	TalonSRX *leftSlaveMotor;
 	TalonSRX *rightMasterMotor;
@@ -50,14 +74,23 @@ public:
 	Timer *autonomousTimer;
 	AHRS *NAVXBoard;
 	ADXRS450_Gyro *ADXGyro;
+	AnalogInput *roborioUltrasonic;
+
+	NetworkTableEntry cameraErrorAngle;
+	NetworkTableEntry trackingState;
+	NetworkTableEntry allianceColor;
+	NetworkTableEntry ultrasonicDistance;
 	void RobotInit() {
 		isHighGear = false;
 		soloTest = true;
-		throttle = 0;
-		steer = 0;
+		targetReached = false;
+		robotThrottle = 0;
+		robotSteer = 0;
 		navxGyro = 0;
 		rioGyro = 0;
 		combinedGyroValue = 0;
+		//Temp.
+		fieldPos = 0;
 		leftMasterMotor = new TalonSRX(1);
 		rightMasterMotor = new TalonSRX(3);
 		leftSlaveMotor = new TalonSRX(2);
@@ -79,14 +112,10 @@ public:
             DriverStation::ReportError(errorString.c_str());
         }
         ADXGyro = new ADXRS450_Gyro();
-		leftMasterMotor->GetSelectedSensorVelocity(0);
+        roborioUltrasonic = new AnalogInput(0);
 		leftMasterMotor->ConfigSelectedFeedbackSensor(FeedbackDevice::CTRE_MagEncoder_Relative, 0, 10);
 		leftMasterMotor->SetSelectedSensorPosition(0, 0, 10);
 		leftMasterMotor->SetSensorPhase(true);
-		leftMasterMotor->ConfigNominalOutputForward(0, 10);
-		leftMasterMotor->ConfigNominalOutputReverse(0, 10);
-		leftMasterMotor->ConfigPeakOutputForward(1, 10);
-		leftMasterMotor->ConfigPeakOutputReverse(-1, 10);
 		leftMasterMotor->Config_kF(0, 0.0, 10);
 		leftMasterMotor->Config_kP(0, 0.0075, 10);
 		leftMasterMotor->Config_kI(0, 0.0, 10);
@@ -95,14 +124,9 @@ public:
 		leftMasterMotor->ConfigMotionCruiseVelocity(2048, 10);
 		leftMasterMotor->ConfigMotionAcceleration(1024, 10);
 
-		rightMasterMotor->GetSelectedSensorVelocity(0);
 		rightMasterMotor->ConfigSelectedFeedbackSensor(FeedbackDevice::CTRE_MagEncoder_Relative, 0, 10);
 		rightMasterMotor->SetSelectedSensorPosition(0, 0, 10);
 		rightMasterMotor->SetSensorPhase(false);
-		rightMasterMotor->ConfigNominalOutputForward(0, 10);
-		rightMasterMotor->ConfigNominalOutputReverse(0, 10);
-		rightMasterMotor->ConfigPeakOutputForward(1, 10);
-		rightMasterMotor->ConfigPeakOutputReverse(-1, 10);
 		rightMasterMotor->Config_kF(0, 0.0, 10);
 		rightMasterMotor->Config_kP(0, 0.0075, 10);
 		rightMasterMotor->Config_kI(0, 0.0, 10);
@@ -110,8 +134,20 @@ public:
 		rightMasterMotor->ConfigMotionCruiseVelocity(2048, 10);
 		rightMasterMotor->ConfigMotionAcceleration(1024, 10);
 
-		autonomousTimer->Reset();
+		elevatorMasterMotor->ConfigSelectedFeedbackSensor(FeedbackDevice::CTRE_MagEncoder_Relative, 0, 10);
+		elevatorMasterMotor->SetSensorPhase(false);
+		elevatorMasterMotor->ConfigNominalOutputForward(0, 10);
+		elevatorMasterMotor->ConfigNominalOutputReverse(0, 10);
+		elevatorMasterMotor->ConfigPeakOutputForward(1, 10);
+		elevatorMasterMotor->ConfigPeakOutputReverse(-1, 10);
+		elevatorMasterMotor->Config_kF(0, 0.0, 10);
+		elevatorMasterMotor->Config_kP(0, 0.0075, 10);
+		elevatorMasterMotor->Config_kI(0, 0.0, 10);
+		elevatorMasterMotor->Config_kD(0, 0.50, 10);
 
+		autonomousTimer->Reset();
+//		auto table = NetworkTableInstance::GetDefault();
+//		auto networkTableData = table.GetTable("Jetson");
 	}
 	void SHIFT_HIGH () {
 		gearBox->Set(DoubleSolenoid::kForward);
@@ -125,84 +161,201 @@ public:
 		gearBox->Set(DoubleSolenoid::kOff);
 		isHighGear=!isHighGear;
 	}
+	float ULTRASONIC_CONVERSION() {
+		float masterUltrasonicConversion = (5000.0 * 39.4)/4.88;
+		float ultrasonicDistance;
+		ultrasonicDistance = masterUltrasonicConversion * roborioUltrasonic->GetAverageValue();
+		return ultrasonicDistance;
+		SmartDashboard::PutNumber("Ultrasonic Distance, Inches", ultrasonicDistance);
+	}
+	void SEGMENT_SELECTION (string position) {
+		//Various states for the field control.
+		bool LLL = false;
+		bool RRR = false;
+		bool LRL = false;
+		bool RLR = false;
+		int switchposition;
+		string functionPos;
+		functionPos = position;
+		//npos checks for whether the find string exists in the to-be parsed.
+		//Sets the various true states for the switch/case system.
+		if(functionPos.find("LLL") == string::npos) {
+			LLL = true;
+			SmartDashboard::PutBoolean("LLL", LLL);
+		}
+		else if(functionPos.find("RRR") == string::npos) {
+			RRR = true;
+			SmartDashboard::PutBoolean("RRR", RRR);
+		}
+		else if(functionPos.find("LRL") == string::npos) {
+			LRL = true;
+			SmartDashboard::PutBoolean("LRL", LRL);
+		}
+		else if(functionPos.find("RLR") == string::npos) {
+			RLR = true;
+			SmartDashboard::PutBoolean("RLR", RLR);
+		}
+		else {
+			SmartDashboard::PutBoolean("Segfault?", true);
+		}
+		//Sets the various positions according to left/right.
+		if (LLL) {
+			switchposition = 0;
+			SmartDashboard::PutString("Switch Position", "Left Side!");
+		} else if (RRR) {
+			switchposition = 1;
+			SmartDashboard::PutString("Switch Position", "Right Side!");
+		} else if (LRL) {
+			switchposition = 0;
+			SmartDashboard::PutString("Switch Position", "Left Side!");
+		} else if (RLR) {
+			switchposition = 1;
+			SmartDashboard::PutString("Switch Position", "Right Side!");
+		} else {
+			switchposition = -1;
+			SmartDashboard::PutString("Position State", "Failure to Assign State!");
+		}
+
+
+//		switch (switchposition) {
+//		//switchposition is the variable determining switch position, left or right.
+//		//Switch on the left side.
+//		case LEFT_FIELD:
+//			switch (fieldPos) {
+//			//fieldPos is the variable determining robot position on the field , left, center, middle.
+//			case BOT_ON_LEFT:
+//				//Switch and Case Values have no meaning, yet.
+//				Segments[0]->DIST = 95.0;
+//				Segments[0]->ANGLE = -90.0;
+//				Segments[1]->DIST = 24.0;
+//				Segments[1]->ANGLE = 0.0;
+//				Segments[2]->DIST = 0.0;
+//				Segments[2]->ANGLE = Segments[1]->ANGLE;
+//				break;
+//			case BOT_ON_CENTER:
+//				Segments[0]->DIST = 95.0;
+//				Segments[0]->ANGLE = -90.0;
+//				Segments[1]->DIST = 36.0;
+//				Segments[1]->ANGLE = 0.0;
+//				Segments[2]->DIST = 0.0;
+//				Segments[2]->ANGLE = Segments[1]->ANGLE;
+//				break;
+//			case BOT_ON_RIGHT:
+//				Segments[0]->DIST = 95.0;
+//				Segments[0]->ANGLE = -90.0;
+//				Segments[1]->DIST = 48.0;
+//				Segments[1]->ANGLE = 0.0;
+//				Segments[2]->DIST = 0.0;
+//				Segments[2]->ANGLE = Segments[1]->ANGLE;
+//				break;
+//			}
+//			break;
+//			//Switch on the right side.
+//		case RIGHT_FIELD:
+//			switch (fieldPos) {
+//			case BOT_ON_LEFT:
+//				Segments[0]->DIST = 95.0;
+//				Segments[0]->ANGLE = 90.0;
+//				Segments[1]->DIST = 12.0;
+//				Segments[1]->ANGLE = 0.0;
+//				Segments[2]->DIST = 0.0;
+//				Segments[2]->ANGLE = Segments[1]->ANGLE;
+//				break;
+//			case BOT_ON_CENTER:
+//				Segments[0]->DIST = 95.0;
+//				Segments[0]->ANGLE = 90.0;
+//				Segments[1]->DIST = 24.0;
+//				Segments[1]->ANGLE = 0.0;
+//				Segments[2]->DIST = 0.0;
+//				Segments[2]->ANGLE = Segments[1]->ANGLE;
+//				break;
+//			case BOT_ON_RIGHT:
+//				Segments[0]->DIST = 95.0;
+//				Segments[0]->ANGLE = 90.0;
+//				Segments[1]->DIST = 36.0;
+//				Segments[1]->ANGLE = 0.0;
+//				Segments[2]->DIST = 0.0;
+//				Segments[2]->ANGLE = Segments[1]->ANGLE;
+//				break;
+//			}
+//			break;
+//		case FAILURE:
+//				Segments[0]->DIST = 0.0;
+//				Segments[0]->ANGLE = 0.0;
+//				Segments[2]->DIST = 0.0;
+//				Segments[1]->ANGLE = 0.0;
+//				Segments[2]->DIST = 0.0;
+//				Segments[2]->ANGLE = 0.0;
+//
+//			break;
+//}
+
+	}
 	void DRIVE_TO_DISTANCE(int autonomousDistanceSet) {
+		float masterUltrasonicConversion = (4.88 * 39.4)/5000.0;
 		rightMasterMotor->SetInverted(true);
 		rightSlaveMotor->SetInverted(true);
 		rightMasterMotor->SetSensorPhase(true);
+		if(((roborioUltrasonic->GetAverageValue() * masterUltrasonicConversion) > 10.0) &&
+				(((gearRatio) * leftMasterMotor->GetSelectedSensorPosition(0)) < (((autonomousDistanceSet - 4.0)/(circumference)) * encoderRotTick) &&
+				(((gearRatio) * rightMasterMotor->GetSelectedSensorPosition(0)) < (((autonomousDistanceSet - 4.0)/(circumference)) * encoderRotTick)))) {
+			leftMasterMotor->Set(ControlMode::Position, -(autonomousDistanceSet/(circumference)) * encoderRotTick);
+			rightMasterMotor->Set(ControlMode::Position, -(autonomousDistanceSet/(circumference)) * encoderRotTick);
 
-		const float inchToMeter = (1.0/39.4);
-		if((((gearRatio) * leftMasterMotor->GetSelectedSensorPosition(0)) < (((autonomousDistanceSet - 0.15)/(circumference * inchToMeter)) * encoderRotTick) &&
-				(((gearRatio) * rightMasterMotor->GetSelectedSensorPosition(0)) < (((autonomousDistanceSet - 0.15)/(circumference * inchToMeter)) * encoderRotTick)))) {
-			leftMasterMotor->Set(ControlMode::Position, -(autonomousDistanceSet/(circumference * inchToMeter)) * encoderRotTick);
-			rightMasterMotor->Set(ControlMode::Position, -(autonomousDistanceSet/(circumference * inchToMeter)) * encoderRotTick);
-
-			SmartDashboard::PutNumber("Left Encoder Position", (gearRatio)*(leftMasterMotor->GetSelectedSensorPosition(0)));
-			SmartDashboard::PutNumber("Right Encoder Position", (gearRatio)*(rightMasterMotor->GetSelectedSensorPosition(0)));
-			SmartDashboard::PutNumber("Distance to Drive", (autonomousDistanceSet/(circumference * inchToMeter)) * encoderRotTick);
-			SmartDashboard::PutNumber("Distance in Meters", autonomousDistanceSet);
 			SmartDashboard::PutString("Driving State?", "Currently Moving Forward");
-
 		} else {
 			leftMasterMotor->Set(ControlMode::PercentOutput, 0.0);
 			rightMasterMotor->Set(ControlMode::PercentOutput, 0.0);
 
-			SmartDashboard::PutNumber("Left Encoder Position", (gearRatio)*(leftMasterMotor->GetSelectedSensorPosition(0)));
-			SmartDashboard::PutNumber("Right Encoder Position", (gearRatio)*(rightMasterMotor->GetSelectedSensorPosition(0)));
 			SmartDashboard::PutString("Driving State?", "Done!");
-
 		}
 	}
 	void TURN_TO_ANGLE (int autonomousAngleSet) {
-		//Distance from the geometric center of the robot to the center contact points of the wheels.
-		//Due to West Coast drive.
-		const float drivetrainRadius = 12.5625;
-		float difference = 0.0;
-		double direction;
-		float distancePerWheel = 0;
+		rightMasterMotor->SetInverted(false);
+		rightSlaveMotor->SetInverted(false);
+		rightMasterMotor->SetSensorPhase(false);
+
 		navxGyro = NAVXBoard->GetAngle();
 		rioGyro = ADXGyro->GetAngle();
 		combinedGyroValue = ((navxGyro + rioGyro)/2);
 		leftMasterMotor->Config_kP(0, 0.029, 10);
 		leftMasterMotor->Config_kI(0, 0.0, 10);
-		leftMasterMotor->Config_kD(0, 0.00015, 10);
+		leftMasterMotor->Config_kD(0, 0.00075, 10);
 		leftMasterMotor->Config_kF(0, 0.125, 10);
+
 		rightMasterMotor->Config_kP(0, 0.029, 10);
 		rightMasterMotor->Config_kI(0, 0.0, 10);
-		rightMasterMotor->Config_kD(0, 0.00015, 10);
+		rightMasterMotor->Config_kD(0, 0.00075, 10);
 		rightMasterMotor->Config_kF(0, 0.125, 10);
 
-		difference = (((autonomousAngleSet - combinedGyroValue)) * (PI/180));
-		//Angular difference in radians for use in determining direction.
-		distancePerWheel = abs(drivetrainRadius * difference);
-		//Distance needed to be traveled by each side of the robot.
-		//Essentially S = r * (theta).
-		direction = ((sin(difference)))/abs(sin(difference));
-		if(direction == 1){
-			rightMasterMotor->SetInverted(true);
-			rightSlaveMotor->SetInverted(true);
-			rightMasterMotor->SetSensorPhase(true);
-			leftMasterMotor->SetInverted(true);
-			leftSlaveMotor->SetInverted(true);
-			leftMasterMotor->SetSensorPhase(true);
+		double tolerance = 9.0;
+		SmartDashboard::PutBoolean("Reached angle", targetReached);
+		SmartDashboard::PutNumber("Angle Target", autonomousAngleSet);
+		SmartDashboard::PutNumber("Combined Value", combinedGyroValue);
+		if((!targetReached && (combinedGyroValue < autonomousAngleSet))) {
+			if((combinedGyroValue > autonomousAngleSet - tolerance) && (combinedGyroValue < autonomousAngleSet + tolerance)) {
+				targetReached = true;
+			}
+			leftMasterMotor->Set(ControlMode::Velocity, (-motorVelocity));
+			rightMasterMotor->Set(ControlMode::Velocity, (-motorVelocity));
+
+			SmartDashboard::PutString("Turning State?", "Turning Right!");
+		} else if(!targetReached && ((combinedGyroValue > autonomousAngleSet))) {
+			if((combinedGyroValue > autonomousAngleSet - tolerance) && (combinedGyroValue < autonomousAngleSet + tolerance)) {
+				targetReached = true;
+			}
+			leftMasterMotor->Set(ControlMode::Velocity, (motorVelocity));
+			rightMasterMotor->Set(ControlMode::Velocity, (motorVelocity));
+
+			SmartDashboard::PutString("Turning State?", "Turning Left!");
 		}
-		if(direction == -1){
-			rightMasterMotor->SetInverted(false);
-			rightSlaveMotor->SetInverted(false);
-			rightMasterMotor->SetSensorPhase(false);
-			leftMasterMotor->SetInverted(false);
-			leftSlaveMotor->SetInverted(false);
-			leftMasterMotor->SetSensorPhase(false);
+		if(targetReached){
+			leftMasterMotor->Set(ControlMode::PercentOutput, (0));
+			rightMasterMotor->Set(ControlMode::PercentOutput, (0));
+
+			SmartDashboard::PutString("Turning State?", "Done!");
 		}
-		if(((direction == 1) && (combinedGyroValue < autonomousAngleSet))) {
-			leftMasterMotor->Set(ControlMode::MotionMagic, (direction * (distancePerWheel/(circumference)) * encoderRotTick));
-			rightMasterMotor->Set(ControlMode::MotionMagic, -(direction * -(distancePerWheel/(circumference)) * encoderRotTick));
-		} else if(((dirrection == -1) && (combinedGyroValue < autonomousAngleSet))) {
-			leftMasterMotor->Set(ControlMode::MotionMagic, -(direction * (distancePerWheel/(circumference)) * encoderRotTick));
-			rightMasterMotor->Set(ControlMode::MotionMagic, -(direction * -(distancePerWheel/(circumference)) * encoderRotTick));
-		} else {
-			leftMasterMotor->Set(ControlMode::PercentOutput, 0);
-			rightMasterMotor->Set(ControlMode::PercentOutput, 0);
-		}
+
 	}
 	void AutonomousInit() override {
 		leftMasterMotor->SetSelectedSensorPosition(0, 0, 10);
@@ -213,7 +366,7 @@ public:
 		rightMasterMotor->SetInverted(false);
 		rightSlaveMotor->SetInverted(false);
 		rightMasterMotor->SetSensorPhase(false);
-
+		targetReached = false;
 
 		autonomousTimer->Reset();
 		autonomousTimer->Start();
@@ -223,14 +376,12 @@ public:
 
 	void AutonomousPeriodic() {
 
-		if(autonomousTimer->Get() < 15.0) {
-			TURN_TO_ANGLE(90.0);
-//			DRIVE_TO_DISTANCE(2)	;
+		if(autonomousTimer->Get() < 5.0) {
+			DRIVE_TO_DISTANCE(95.0);
 			SmartDashboard::PutNumber("Time", autonomousTimer->Get());
-			SmartDashboard::PutNumber("LM Output", leftMasterMotor->GetMotorOutputPercent());
-			SmartDashboard::PutNumber("RM Output", rightMasterMotor->GetMotorOutputPercent());
-			SmartDashboard::PutNumber("LS Output", leftSlaveMotor->GetMotorOutputPercent());
-			SmartDashboard::PutNumber("RS Output", rightSlaveMotor->GetMotorOutputPercent());
+		} else if (autonomousTimer->Get() > 5.0) {
+			TURN_TO_ANGLE(-90.0);
+			SmartDashboard::PutNumber("Time", autonomousTimer->Get());
 		}
 	}
 
@@ -250,22 +401,23 @@ public:
 		leftMasterMotor->SetSensorPhase(true);
 		NAVXBoard->Reset();
 		ADXGyro->Reset();
-
 	}
 
 	void TeleopPeriodic() {
+		SEGMENT_SELECTION(DriverStation::GetInstance().GetGameSpecificMessage());
+
 		if(abs(rightJoystick->GetY()) < 0.05) {
-			throttle = 0;
+			robotThrottle = 0;
 		} else {
-			throttle = rightJoystick->GetY();
+			robotThrottle = rightJoystick->GetY();
 		}
 		if(abs(rightJoystick->GetX()) < 0.05) {
-			steer = 0;
+			robotSteer = 0;
 		} else {
-			steer = rightJoystick->GetX();
+			robotSteer = rightJoystick->GetX();
 		}
-		leftMasterMotor->Set(ControlMode::PercentOutput, throttle - steer);
-		rightMasterMotor->Set(ControlMode::PercentOutput, -throttle - steer);
+		leftMasterMotor->Set(ControlMode::PercentOutput, robotThrottle - robotSteer);
+		rightMasterMotor->Set(ControlMode::PercentOutput, -robotThrottle - robotSteer);
 
 		if(rightJoystick->GetRawButton(2) && soloTest) {
 			if(isHighGear) {
@@ -278,16 +430,12 @@ public:
 		if(!rightJoystick->GetRawButton(2)) {
 			soloTest = true;
 		}
-
-		//TODO Create ludicrous mode, but don't tell J03.
 		navxGyro = NAVXBoard->GetAngle();
 		rioGyro = ADXGyro->GetAngle();
 		combinedGyroValue = ((navxGyro + rioGyro)/2);
-		SmartDashboard::PutNumber("Left Position", leftMasterMotor->GetSelectedSensorPosition(0));
-		SmartDashboard::PutNumber("Right Position", rightMasterMotor->GetSelectedSensorPosition(0));
-		SmartDashboard::PutNumber("ADX_OUTPUT", ADXGyro->GetAngle());
-		SmartDashboard::PutNumber("NAVX_OUTPUT", NAVXBoard->GetAngle());
-		SmartDashboard::PutNumber("COMPOSITE_OUTPUT", combinedGyroValue);
+		SmartDashboard::PutNumber("ADX Gyroscope Value", ADXGyro->GetAngle());
+		SmartDashboard::PutNumber("NAVX Board Value", NAVXBoard->GetAngle());
+		SmartDashboard::PutNumber("Composite Gyroscope Value", combinedGyroValue);
 
 		frc::Wait(0.005);
 	}
