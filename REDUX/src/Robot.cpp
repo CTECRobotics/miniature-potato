@@ -346,47 +346,13 @@ return doneTurning;
 		}
 		return doneDriving;
 	}
-	void SEGMENT_SELECTION (string position) {
-		//Various states for the field control.
-		bool LLL = false;
-		bool RRR = false;
-		bool LRL = false;
-		bool RLR = false;
-		int switchposition = 0;
-		string functionPos;
-		functionPos = position;
-		//npos checks for whether the find string exists in the to-be parsed.
-		//Sets the various true states for the switch/case system.
-		if(functionPos.find("LLL") != string::npos) {
-			LLL = true;
-		} else if(functionPos.find("RRR") == string::npos) {
-			RRR = true;
-		} else if(functionPos.find("LRL") == string::npos) {
-			LRL = true;
-		} else if(functionPos.find("RLR") == string::npos) {
-			RLR = true;
-		}
-		//Sets the various positions according to left/right.
-		if (LLL) {
-			switchposition = 0;
-			SmartDashboard::PutString("Switch Position", "Left Side!");
-		} else if (RRR) {
-			switchposition = 1;
-			SmartDashboard::PutString("Switch Position", "Right Side!");
-		} else if (LRL) {
-			switchposition = 0;
-			SmartDashboard::PutString("Switch Position", "Left Side!");
-		} else if (RLR) {
-			switchposition = 1;
-			SmartDashboard::PutString("Switch Position", "Right Side!");
-		} else {
-			switchposition = -1;
-			SmartDashboard::PutString("Position State", "Failure to Assign State!");
-		}
-
-		switch (switchposition) {
+	void SEGMENT_SELECTION (double processedData) {
+		int switchposition = processedData;
+		//TODO Write stuff to get a value from the DriverStation.
+		fieldPos = 2;
 		//switchposition is the variable determining switch position, left or right.
 		//Switch on the left side.
+		switch (switchposition) {
 		case LEFT_FIELD:
 			switch (fieldPos) {
 			//fieldPos is the variable determining robot position on the field , left, center, middle.
