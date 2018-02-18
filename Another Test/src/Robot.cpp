@@ -26,9 +26,9 @@ using namespace nt;
 class Robot : public frc::IterativeRobot {
 public:
 	struct Leg_Data{
-		int DIST;
-		int ANGLE;
-	}*Segments[3];
+		float DIST;
+		float ANGLE;
+	}Segments[3];
 	enum segmentState{
 		SEG_1 = 0,
 		SEG_2 = 1,
@@ -80,6 +80,8 @@ public:
 	NetworkTableEntry trackingState;
 	NetworkTableEntry allianceColor;
 	NetworkTableEntry ultrasonicDistance;
+	NetworkTableEntry scaleString;
+	NetworkTableEntry dataSink;
 	void RobotInit() {
 		isHighGear = false;
 		soloTest = true;
@@ -146,8 +148,13 @@ public:
 		elevatorMasterMotor->Config_kD(0, 0.50, 10);
 
 		autonomousTimer->Reset();
-//		auto table = NetworkTableInstance::GetDefault();
-//		auto networkTableData = table.GetTable("Jetson");
+		auto table = NetworkTableInstance::GetDefault();
+		auto networkTableData = table.GetTable("Jetson");
+		cameraErrorAngle = networkTableData->GetEntry("angle");
+		trackingState = networkTableData->GetEntry("V_Working");
+		ultrasonicDistance = networkTableData->GetEntry("Distance");
+		scaleString = networkTableData->GetEntry("scaleString");
+		dataSink = networkTableData->GetEntry("processed");
 	}
 	void SHIFT_HIGH () {
 		gearBox->Set(DoubleSolenoid::kForward);
@@ -168,127 +175,84 @@ public:
 		return ultrasonicDistance;
 		SmartDashboard::PutNumber("Ultrasonic Distance, Inches", ultrasonicDistance);
 	}
-	void SEGMENT_SELECTION (string position) {
-		//Various states for the field control.
-		bool LLL = false;
-		bool RRR = false;
-		bool LRL = false;
-		bool RLR = false;
-		int switchposition;
-		string functionPos;
-		functionPos = position;
-		//npos checks for whether the find string exists in the to-be parsed.
-		//Sets the various true states for the switch/case system.
-		if(functionPos.find("LLL") == string::npos) {
-			LLL = true;
-			SmartDashboard::PutBoolean("LLL", LLL);
-		}
-		else if(functionPos.find("RRR") == string::npos) {
-			RRR = true;
-			SmartDashboard::PutBoolean("RRR", RRR);
-		}
-		else if(functionPos.find("LRL") == string::npos) {
-			LRL = true;
-			SmartDashboard::PutBoolean("LRL", LRL);
-		}
-		else if(functionPos.find("RLR") == string::npos) {
-			RLR = true;
-			SmartDashboard::PutBoolean("RLR", RLR);
-		}
-		else {
-			SmartDashboard::PutBoolean("Segfault?", true);
-		}
-		//Sets the various positions according to left/right.
-		if (LLL) {
-			switchposition = 0;
-			SmartDashboard::PutString("Switch Position", "Left Side!");
-		} else if (RRR) {
-			switchposition = 1;
-			SmartDashboard::PutString("Switch Position", "Right Side!");
-		} else if (LRL) {
-			switchposition = 0;
-			SmartDashboard::PutString("Switch Position", "Left Side!");
-		} else if (RLR) {
-			switchposition = 1;
-			SmartDashboard::PutString("Switch Position", "Right Side!");
-		} else {
-			switchposition = -1;
-			SmartDashboard::PutString("Position State", "Failure to Assign State!");
-		}
+	void SEGMENT_SELECTION (double processedData) {
+		int switchposition = processedData;
+		fieldPos = 2;
+		SmartDashboard::PutString("Segment Selection", "Started!");
+		switch (switchposition) {
+		//switchposition is the variable determining switch position, left or right.
+		//Switch on the left side.
+		case LEFT_FIELD:
+			switch (fieldPos) {
+			//fieldPos is the variable determining robot position on the field , left, center, middle.
+			case BOT_ON_LEFT:
+				//Switch and Case Values have no meaning, yet.
+				Segments[0].DIST = 95.0;
+				Segments[0].ANGLE = -90.0;
+				Segments[1].DIST = 24.0;
+				Segments[1].ANGLE = 0.0;
+				Segments[2].DIST = 0.0;
+				Segments[2].ANGLE = Segments[1].ANGLE;
+				SmartDashboard::PutString("Segment Selection", "Robot on Left Field Left!");
+				break;
+			case BOT_ON_CENTER:
+				Segments[0].DIST = 95.0;
+				Segments[0].ANGLE = -90.0;
+				Segments[1].DIST = 36.0;
+				Segments[1].ANGLE = 0.0;
+				Segments[2].DIST = 0.0;
+				Segments[2].ANGLE = Segments[1].ANGLE;
+				SmartDashboard::PutString("Segment Selection", "Robot on Left Field Mid!");
 
+				break;
+			case BOT_ON_RIGHT:
+				Segments[0].DIST = 95.0;
+				Segments[0].ANGLE = -90.0;
+				Segments[1].DIST = 48.0;
+				Segments[1].ANGLE = 0.0;
+				Segments[2].DIST = 0.0;
+				Segments[2].ANGLE = Segments[1].ANGLE;
+				SmartDashboard::PutString("Segment Selection", "Robot on Left Field Right!");
+				break;
+			}
+			break;
+			//Switch on the right side.
+		case RIGHT_FIELD:
+			switch (fieldPos) {
+			case BOT_ON_LEFT:
+				Segments[0].DIST = 95.0;
+				Segments[0].ANGLE = 90.0;
+				Segments[1].DIST = 12.0;
+				Segments[1].ANGLE = 0.0;
+				Segments[2].DIST = 0.0;
+				Segments[2].ANGLE = Segments[1].ANGLE;
+				SmartDashboard::PutString("Segment Selection", "Robot on Right Field Left!");
 
-//		switch (switchposition) {
-//		//switchposition is the variable determining switch position, left or right.
-//		//Switch on the left side.
-//		case LEFT_FIELD:
-//			switch (fieldPos) {
-//			//fieldPos is the variable determining robot position on the field , left, center, middle.
-//			case BOT_ON_LEFT:
-//				//Switch and Case Values have no meaning, yet.
-//				Segments[0]->DIST = 95.0;
-//				Segments[0]->ANGLE = -90.0;
-//				Segments[1]->DIST = 24.0;
-//				Segments[1]->ANGLE = 0.0;
-//				Segments[2]->DIST = 0.0;
-//				Segments[2]->ANGLE = Segments[1]->ANGLE;
-//				break;
-//			case BOT_ON_CENTER:
-//				Segments[0]->DIST = 95.0;
-//				Segments[0]->ANGLE = -90.0;
-//				Segments[1]->DIST = 36.0;
-//				Segments[1]->ANGLE = 0.0;
-//				Segments[2]->DIST = 0.0;
-//				Segments[2]->ANGLE = Segments[1]->ANGLE;
-//				break;
-//			case BOT_ON_RIGHT:
-//				Segments[0]->DIST = 95.0;
-//				Segments[0]->ANGLE = -90.0;
-//				Segments[1]->DIST = 48.0;
-//				Segments[1]->ANGLE = 0.0;
-//				Segments[2]->DIST = 0.0;
-//				Segments[2]->ANGLE = Segments[1]->ANGLE;
-//				break;
-//			}
-//			break;
-//			//Switch on the right side.
-//		case RIGHT_FIELD:
-//			switch (fieldPos) {
-//			case BOT_ON_LEFT:
-//				Segments[0]->DIST = 95.0;
-//				Segments[0]->ANGLE = 90.0;
-//				Segments[1]->DIST = 12.0;
-//				Segments[1]->ANGLE = 0.0;
-//				Segments[2]->DIST = 0.0;
-//				Segments[2]->ANGLE = Segments[1]->ANGLE;
-//				break;
-//			case BOT_ON_CENTER:
-//				Segments[0]->DIST = 95.0;
-//				Segments[0]->ANGLE = 90.0;
-//				Segments[1]->DIST = 24.0;
-//				Segments[1]->ANGLE = 0.0;
-//				Segments[2]->DIST = 0.0;
-//				Segments[2]->ANGLE = Segments[1]->ANGLE;
-//				break;
-//			case BOT_ON_RIGHT:
-//				Segments[0]->DIST = 95.0;
-//				Segments[0]->ANGLE = 90.0;
-//				Segments[1]->DIST = 36.0;
-//				Segments[1]->ANGLE = 0.0;
-//				Segments[2]->DIST = 0.0;
-//				Segments[2]->ANGLE = Segments[1]->ANGLE;
-//				break;
-//			}
-//			break;
-//		case FAILURE:
-//				Segments[0]->DIST = 0.0;
-//				Segments[0]->ANGLE = 0.0;
-//				Segments[2]->DIST = 0.0;
-//				Segments[1]->ANGLE = 0.0;
-//				Segments[2]->DIST = 0.0;
-//				Segments[2]->ANGLE = 0.0;
-//
-//			break;
-//}
+				break;
+			case BOT_ON_CENTER:
+				Segments[0].DIST = 95.0;
+				Segments[0].ANGLE = 90.0;
+				Segments[1].DIST = 24.0;
+				Segments[1].ANGLE = 0.0;
+				Segments[2].DIST = 0.0;
+				Segments[2].ANGLE = Segments[1].ANGLE;
+				SmartDashboard::PutString("Segment Selection", "Robot on Right Field Mid!");
+				break;
+			case BOT_ON_RIGHT:
+				Segments[0].DIST = 95.0;
+				Segments[0].ANGLE = 90.0;
+				Segments[1].DIST = 36.0;
+				Segments[1].ANGLE = 0.0;
+				Segments[2].DIST = 0.0;
+				Segments[2].ANGLE = Segments[1].ANGLE;
+				SmartDashboard::PutString("Segment Selection", "Robot on Right Field Right!");
+				break;
+			}
+			break;
+		case FAILURE:
+			SmartDashboard::PutString("Segment Selection", "Total Failure!");
+			break;
+}
 
 	}
 	void DRIVE_TO_DISTANCE(int autonomousDistanceSet) {
@@ -329,7 +293,7 @@ public:
 		rightMasterMotor->Config_kF(0, 0.125, 10);
 
 		double tolerance = 9.0;
-		SmartDashboard::PutBoolean("Reached angle", targetReached);
+		SmartDashboard::PutBoolean("Reached Angle", targetReached);
 		SmartDashboard::PutNumber("Angle Target", autonomousAngleSet);
 		SmartDashboard::PutNumber("Combined Value", combinedGyroValue);
 		if((!targetReached && (combinedGyroValue < autonomousAngleSet))) {
@@ -404,8 +368,9 @@ public:
 	}
 
 	void TeleopPeriodic() {
-		SEGMENT_SELECTION(DriverStation::GetInstance().GetGameSpecificMessage());
-
+		scaleString.SetString(DriverStation::GetInstance().GetGameSpecificMessage());
+		SmartDashboard::PutString("Game Data", DriverStation::GetInstance().GetGameSpecificMessage());
+		SEGMENT_SELECTION(dataSink.GetDouble(-1));
 		if(abs(rightJoystick->GetY()) < 0.05) {
 			robotThrottle = 0;
 		} else {
@@ -436,6 +401,9 @@ public:
 		SmartDashboard::PutNumber("ADX Gyroscope Value", ADXGyro->GetAngle());
 		SmartDashboard::PutNumber("NAVX Board Value", NAVXBoard->GetAngle());
 		SmartDashboard::PutNumber("Composite Gyroscope Value", combinedGyroValue);
+		SmartDashboard::PutNumber("Vision Working State", trackingState.GetDouble(-1.0));
+		SmartDashboard::PutNumber("Camera Error", cameraErrorAngle.GetDouble(180.0));
+		SmartDashboard::PutNumber("Switch Postion", dataSink.GetDouble(-1));
 
 		frc::Wait(0.005);
 	}
