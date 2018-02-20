@@ -9,7 +9,6 @@
 #include <stdlib.h> 							//standard libraries
 #include "WPILib.h"
 #include "doublesolenoid.h"
-#include "Timer.h"
 #include <PIDSource.h>
 #include <AnalogGyro.h>
 #include <cmath>
@@ -26,8 +25,8 @@ using namespace nt;
 class Robot : public frc::IterativeRobot {
 public:
 	struct Leg_Data{
-		float DIST;
-		float ANGLE;
+		double DIST;
+		double ANGLE;
 	}Segments[3];
 	enum segmentState{
 		SEG_1 = 0,
@@ -37,12 +36,13 @@ public:
 	enum switchpositionValues{
 		LEFT_FIELD = 0,
 		RIGHT_FIELD = 1,
-		FAILURE = -1,
+		FIELD_FAILURE = 3,
 	};
 	enum ROBOT_STARTING_POS{
 		BOT_ON_LEFT = 0,
 		BOT_ON_CENTER = 1,
 		BOT_ON_RIGHT = 2,
+		BOT_POS_FAILURE = 3,
 	};
 	bool isHighGear;
 	bool soloTest;
@@ -168,16 +168,16 @@ public:
 		gearBox->Set(DoubleSolenoid::kOff);
 		isHighGear=!isHighGear;
 	}
-	float ULTRASONIC_CONVERSION() {
+	float ULTRASONIC_CONVERSION(float distance) {
 		float masterUltrasonicConversion = (5000.0 * 39.4)/4.88;
-		float ultrasonicDistance;
+		float ultrasonicDistance = distance;
 		ultrasonicDistance = masterUltrasonicConversion * roborioUltrasonic->GetAverageValue();
 		return ultrasonicDistance;
 		SmartDashboard::PutNumber("Ultrasonic Distance, Inches", ultrasonicDistance);
 	}
 	void SEGMENT_SELECTION (double processedData) {
 		int switchposition = processedData;
-		fieldPos = 2;
+		fieldPos = SmartDashboard::GetNumber("Robot Field Position", 3);
 		SmartDashboard::PutString("Segment Selection", "Started!");
 		switch (switchposition) {
 		//switchposition is the variable determining switch position, left or right.
@@ -203,7 +203,6 @@ public:
 				Segments[2].DIST = 0.0;
 				Segments[2].ANGLE = Segments[1].ANGLE;
 				SmartDashboard::PutString("Segment Selection", "Robot on Left Field Mid!");
-
 				break;
 			case BOT_ON_RIGHT:
 				Segments[0].DIST = 95.0;
@@ -213,6 +212,14 @@ public:
 				Segments[2].DIST = 0.0;
 				Segments[2].ANGLE = Segments[1].ANGLE;
 				SmartDashboard::PutString("Segment Selection", "Robot on Left Field Right!");
+				break;
+			case BOT_POS_FAILURE:
+				Segments[0].DIST = 0.0;
+				Segments[0].ANGLE = 0.0;
+				Segments[1].DIST = 0.0;
+				Segments[1].ANGLE = 0.0;
+				Segments[2].DIST = 0.0;
+				Segments[2].ANGLE = 0.0;
 				break;
 			}
 			break;
@@ -247,9 +254,17 @@ public:
 				Segments[2].ANGLE = Segments[1].ANGLE;
 				SmartDashboard::PutString("Segment Selection", "Robot on Right Field Right!");
 				break;
+			case BOT_POS_FAILURE:
+				Segments[0].DIST = 0.0;
+				Segments[0].ANGLE = 0.0;
+				Segments[1].DIST = 0.0;
+				Segments[1].ANGLE = 0.0;
+				Segments[2].DIST = 0.0;
+				Segments[2].ANGLE = 0.0;
+				break;
 			}
 			break;
-		case FAILURE:
+		case FIELD_FAILURE:
 			SmartDashboard::PutString("Segment Selection", "Total Failure!");
 			break;
 }
@@ -371,6 +386,8 @@ public:
 		scaleString.SetString(DriverStation::GetInstance().GetGameSpecificMessage());
 		SmartDashboard::PutString("Game Data", DriverStation::GetInstance().GetGameSpecificMessage());
 		SEGMENT_SELECTION(dataSink.GetDouble(-1));
+		ultrasonicDistance.SetDouble(double(ULTRASONIC_CONVERSION(roborioUltrasonic->GetAverageValue())));
+
 		if(abs(rightJoystick->GetY()) < 0.05) {
 			robotThrottle = 0;
 		} else {
@@ -398,12 +415,10 @@ public:
 		navxGyro = NAVXBoard->GetAngle();
 		rioGyro = ADXGyro->GetAngle();
 		combinedGyroValue = ((navxGyro + rioGyro)/2);
-		SmartDashboard::PutNumber("ADX Gyroscope Value", ADXGyro->GetAngle());
-		SmartDashboard::PutNumber("NAVX Board Value", NAVXBoard->GetAngle());
 		SmartDashboard::PutNumber("Composite Gyroscope Value", combinedGyroValue);
 		SmartDashboard::PutNumber("Vision Working State", trackingState.GetDouble(-1.0));
 		SmartDashboard::PutNumber("Camera Error", cameraErrorAngle.GetDouble(180.0));
-		SmartDashboard::PutNumber("Switch Postion", dataSink.GetDouble(-1));
+		SmartDashboard::PutNumber("Switch Position", dataSink.GetDouble(-1));
 
 		frc::Wait(0.005);
 	}
