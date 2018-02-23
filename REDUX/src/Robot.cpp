@@ -54,20 +54,22 @@ public:
 	};
 	//Creates enum values for the joysticks for intuitiveness.
 	enum rightJoystickMap{
-		INTAKE = 1,
 		GEAR_CHANGE = 2,
-		ACTUATOR_UP = 5,
-		ACTUATOR_DOWN = 3,
-		ELEVATOR_UP = 6,
-		ELEVATOR_DOWN = 4,
 	};
 	enum leftJoystickMap{
-		OUTAKE = 1,
-		WINCH = 6,
+		ACTUATOR_IN = 1,
+		ACTUATOR_OUT = 2,
+		ELEVATOR_UP = 3,
+		ELEVATOR_DOWN = 4,
+		INTAKE = 5,
+		OUTAKE = 6,
+		WINCH = 7,
 	};
 	enum gamepadMap{
-		ELEVATOR_CONTROL = 2,
-		INTAKE_CONTROL = 5,
+		ELEVATOR_CONTROL_UP = 1,
+		ELEVATOR_CONTROL_DOWN = 2,
+		INTAKE_CONTROL_IN = 3,
+		INTAKE_CONTOL_OUT = 4,
 	};
 	//Creates enum values for my behavior states.
 	enum ANGEL_STATES{
@@ -75,6 +77,7 @@ public:
 		CHAOTIC_NEUTRAL = 1,
 		IOSIF_STALIN = 2,
 		HAMMER_TIME = 3,
+		END_MY_SUFFERING = 4,
 	};
 	bool isTracking;
 	bool isHighGear;
@@ -159,8 +162,8 @@ public:
 	void RobotInit() {
 		isTracking = false;
 		isHighGear = false;
-		isTurnState = false;
-		isDriveState = false;
+		isTurnState = true;
+		isDriveState = true;
 		shiftingSoloTest = true;
 		turningSoloTest = true;
 		drivingSoloTest = true;
@@ -193,6 +196,7 @@ public:
 		theLonelyMotor = new TalonSRX(12);
 
 		gearBox = new DoubleSolenoid(1, 2);
+		armActuator = new DoubleSolenoid(3,4)
 		//This try/catch should connect the NAVX.
 		//Will spit out an error message if failed.
         try {
@@ -205,7 +209,7 @@ public:
         	//SENSORS, JOYSTICKS, ACCELEROMETERS, ETC.
 		leftJoystick = new Joystick(0);
 		rightJoystick = new Joystick(1);
-		PS4Gamepad = new Joystick(0);
+		PS4Gamepad = new Joystick(2);
 		ADXGyro = new ADXRS450_Gyro();
 		autonomousTimer = new Timer();
 
@@ -378,7 +382,6 @@ return doneTurning;
 		rightMasterMotor->Config_kP(0, 0.5, 10);
 		rightMasterMotor->Config_kI(0, 0.0, 10);
 		rightMasterMotor->Config_kD(0, 0.50, 10);
-		isTurnState =! isTurnState;
 	}
 	void DRIVE_PARAM_SET() {
 		leftMasterMotor->Config_kF(0, 0.0, 10);
@@ -390,14 +393,31 @@ return doneTurning;
 		rightMasterMotor->Config_kP(0, 0.0075, 10);
 		rightMasterMotor->Config_kI(0, 0.0, 10);
 		rightMasterMotor->Config_kD(0, 0.50, 10);
-		isDriveState =! isDriveState;
-
 	}
 	void SEGMENT_SELECTION (double processedData) {
 		//switchPosition indicates where the switch is located, 0 = left, 1 = right.
+		bool LLL = false;
+		bool RRR = false;
+		bool LRL = false;
+		bool RLR = false;
+		if(position == "LLL") {
+					LLL = true;
+		} else if(position == "RRR") {
+					RRR = true;
+		} else if(position == "LRL") {
+					LRL = true;
+		} else if(position == "RLR") {
+					RLR = true;
+		}
+		if (LLL) {
+				switchposition = 0;
+		} else if (RRR) {
+				switchposition = 1;
+		} else if (LRL) {
+				switchposition = 0;
+		} else if (RLR) {
+				switchposition = 1;
 		int switchposition = processedData;
-		//fieldPos is the variable determining robot position on the field, 0 = left, 1 = center, 2 = middle.
-		fieldPos = SmartDashboard::GetNumber("Robot Field Position", 0);
 		switch (switchposition) {
 		case LEFT_FIELD:
 			switch (fieldPos) {
@@ -496,7 +516,6 @@ return doneTurning;
 	}
 	void AutonomousInit() override {
 		scaleString.SetString(DriverStation::GetInstance().GetGameSpecificMessage());
-		SmartDashboard::PutString("Game Data", DriverStation::GetInstance().GetGameSpecificMessage());
 
 		leftMasterMotor->Config_kF(0, 0.0, 10);
 		leftMasterMotor->Config_kP(0, 0.0085, 10);
@@ -538,10 +557,12 @@ return doneTurning;
 		while(autonomousTimer->Get() <= 15) {
 			if(isTracking == 0) {
 				if(!doneDriving) {
+					//The below state checker should only set the turn PID parameters once only.
 					if(drivingSoloTest) {
-						if(isDriveState) {
 							DRIVE_PARAM_SET();
-						}
+							Wait(0.5);
+							leftMasterMotor->SetSelectedSensorPosition(0, 0, 10);
+							rightMasterMotor->SetSelectedSensorPosition(0, 0, 10);
 					drivingSoloTest = false;
 					}
 					doneDriving = DRIVE_TO_DISTANCE(Segments[driveState].DIST);
@@ -552,11 +573,9 @@ return doneTurning;
 					SmartDashboard::PutBoolean("Driving State", doneDriving);
 					SmartDashboard::PutBoolean("Turning State", driveState);
 				} else if (doneDriving && !doneTurning) {
-					//The below state checker should only set the turn PID parameters once only.
 					if(turningSoloTest) {
-						if(isTurnState) {
 							TURN_PARAM_SET();
-						}
+							Wait(0.5);
 					turningSoloTest = false;
 					}
 					doneTurning = TURN_TO_ANGLE(Segments[driveState].ANGLE);
@@ -649,27 +668,43 @@ return doneTurning;
 		if(!rightJoystick->GetRawButton(rightJoystickMap::GEAR_CHANGE)) {
 			shiftingSoloTest = true;
 		}
-		if(rightJoystick->GetRawButton(rightJoystickMap::ELEVATOR_UP)) {
+		if(leftJoystick->GetRawButton(leftJoystick::ELEVATOR_UP)) {
 			elevatorMasterMotor->Set(ControlMode::PercentOutput, 0.75);
 		}
-		if(rightJoystick->GetRawButton(rightJoystickMap::ELEVATOR_DOWN)) {
+		if(leftJoystick->GetRawButton(leftJoystick::ELEVATOR_DOWN)) {
 			elevatorMasterMotor->Set(ControlMode::PercentOutput, -0.75);
 		}
-		if(rightJoystick->GetRawButton(rightJoystickMap::ACTUATOR_UP)) {
-			actuatorMotor->Set(ControlMode::PercentOutput, 0.625);
+		if(leftJoystick->GetRawButton(leftJoystick::ACTUATOR_IN)) {
+			armActuator->Set(DoubleSolenoid::kForward);
+			frc::Wait(0.5);
+			armActuator->Set(DoubleSolenoid::kOff);
 		}
-		if(rightJoystick->GetRawButton(rightJoystickMap::ACTUATOR_DOWN)) {
-			actuatorMotor->Set(ControlMode::PercentOutput, -0.25);
+		if(leftJoystick->GetRawButton(leftJoystick::ACTUATOR_OUT)) {
+			armActuator->set(DoubleSolenoid::kReverse);
+			frc::Wait(0.5);
+			armActuator->set(DoubleSolenoid::kOff);
 		}
-		if(rightJoystick->GetRawButton(rightJoystickMap::INTAKE)) {
-
+		if(leftJoystick->GetRawButton(leftJoystick::INTAKE)) {
+			//INTAKE MOTOR
 		}
-
+		
 		if(leftJoystick->GetRawButton(leftJoystickMap::OUTAKE)) {
-
+			//INTAKE MOTOR
 		}
 		if(leftJoystick->GetRawButton(leftJoystickMap::WINCH)) {
-
+			//RUN NONEXISTANT MOTOR
+		}
+		if(PS4Gamepad->GetRawButton(gamepadMap::ELEVATOR_CONTROL_UP)){
+			elevatorMasterMotor->Set(ControlMode::PercentOutput, 0.75);
+		}
+		if(PS4Gamepad->GetRawButton(gamepadMap::ELEVATOR_CONTOL_DOWN)){
+			elevatorMasterMotor->Set(ControlMode::PercentOutput, -0.75);
+		}
+		if(PS4Gamepad->GetRawButton(gamepadMap::ACTUATOR_UP)){
+			actuatorMotor->Set(ControlMode::PercentOutput, 0.625);`
+		}
+		if(PS4Gamepad->GetRawButton(gamepadMap::ACTUATOR_DOWN)){
+			actuatorMotor->Set(ControlMode::PercentOutput, -0.25);
 		}
 		navxGyro = NAVXBoard->GetAngle();
 		rioGyro = ADXGyro->GetAngle();
