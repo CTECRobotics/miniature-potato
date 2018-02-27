@@ -29,12 +29,15 @@ public:
 	struct Leg_Data{
 		double DIST;
 		double ANGLE;
-	}Segments[3];
+	}Segments[6];
 	//For tracking the current segment during autonomous.
 	enum segmentState{
 		SEG_1 = 0,
 		SEG_2 = 1,
 		SEG_3 = 2,
+		SEG_4 = 3,
+		SEG_5 = 4,
+		SEG_6 = 5,
 	};
 	//Designates the left/right field sides as an enum for intuitiveness.
 	enum switchpositionValues{
@@ -361,15 +364,37 @@ return doneTurning;
 		return doneDriving;
 	}
 	void SEGMENT_DATA_SET (string inputData) {
+
 		//switchPosition indicates where the switch is located, 0 = left, 1 = right.
 		bool LLL = false;
 		bool RRR = false;
 		bool LRL = false;
 		bool RLR = false;
+        bool left = SmartDashboard::GetBoolean("Left", !!0);
+        bool center = SmartDashboard::GetBoolean("Center", !!0);
+        bool right = SmartDashboard::GetBoolean("Right", !!0);
+        bool runScale = SmartDashboard::GetBoolean("BaseLine-Scale", !!0);
+        bool runSwitch = SmartDashboard::GetBoolean("BaseLine-Switch", !!0);
+        bool runAll = SmartDashboard::GetBoolean("BaseLne-Scale&Switch", !!0);
+        bool runBaseline = SmartDashboard::GetBoolean("BaseLine-Only", !!0);
+        bool MultiCube = SmartDashboard::GetBoolean("MultiCube-Auto", !!0);
+
+
+        if(left){
+         fieldPos = 0;
+        } else if(center){
+            fieldPos = 1;
+        } else if(right){
+            fieldPos = 2;
+        } else {
+            fieldPos = -1;
+        }
 		string position;
 		position = inputData;
 		//switchPosition indicates where the switch is located, 0 = left, 1 = right.
-		int switchposition;
+		int switchposition_cl;
+        int switchposition_fr;
+        int scaleposition;
 		//String parsing code.
 		if(position == "LLL") {
 			LLL = true;
@@ -380,100 +405,222 @@ return doneTurning;
 		} else if(position == "RLR") {
 			RLR = true;
 		}
+
 		//Assigns 0 to the left side, 1 to the right side.
 		if (LLL) {
-			switchposition = 0;
+			switchposition_cl = 0;
+            scaleposition = 0;
+            switchposition_fr = 0;
 		} else if (RRR) {
-			switchposition = 1;
+			switchposition_cl = 1;
+            scaleposition = 1;
+            switchposition_fr = 1;
 		} else if (LRL) {
-			switchposition = 0;
+			switchposition_cl = 0;
+            scaleposition = 1;
+            switchposition_fr = 0;
 		} else if (RLR) {
-			switchposition = 1;
+			switchposition_cl = 1;
+            scaleposition = 0;
+            switchposition_fr = 1;
 		} else {
-			switchposition = 2;
+			switchposition_cl = 2;
+            scaleposition = 2;
+            switchposition_fr = 2;
 		}
-		switch (switchposition) {
-		case LEFT_FIELD:
-			switch (fieldPos) {
-			case BOT_ON_LEFT:
-				Segments[0].DIST = 95.0;
-				Segments[0].ANGLE = -90.0;
-				Segments[1].DIST = 24.0;
-				Segments[1].ANGLE = 0.0;
-				Segments[2].DIST = 0.0;
-				Segments[2].ANGLE = Segments[1].ANGLE;
-				break;
-			case BOT_ON_CENTER:
-				Segments[0].DIST = 95.0;
-				Segments[0].ANGLE = -90.0;
-				Segments[1].DIST = 36.0;
-				Segments[1].ANGLE = 0.0;
-				Segments[2].DIST = 0.0;
-				Segments[2].ANGLE = Segments[1].ANGLE;
-				break;
-			case BOT_ON_RIGHT:
-				Segments[0].DIST = 95.0;
-				Segments[0].ANGLE = -90.0;
-				Segments[1].DIST = 48.0;
-				Segments[1].ANGLE = 0.0;
-				Segments[2].DIST = 0.0;
-				Segments[2].ANGLE = Segments[1].ANGLE;
-				break;
-			case BOT_POS_FAILURE:
-				Segments[0].DIST = 0.0;
-				Segments[0].ANGLE = 0.0;
-				Segments[1].DIST = 0.0;
-				Segments[1].ANGLE = 0.0;
-				Segments[2].DIST = 0.0;
-				Segments[2].ANGLE = 0.0;
-				break;
-			}
-			break;
-		case RIGHT_FIELD:
-			switch (fieldPos) {
-			case BOT_ON_LEFT:
-				Segments[0].DIST = 95.0;
-				Segments[0].ANGLE = 90.0;
-				Segments[1].DIST = 12.0;
-				Segments[1].ANGLE = 0.0;
-				Segments[2].DIST = 0.0;
-				Segments[2].ANGLE = Segments[1].ANGLE;
-				break;
-			case BOT_ON_CENTER:
-				Segments[0].DIST = 95.0;
-				Segments[0].ANGLE = 90.0;
-				Segments[1].DIST = 24.0;
-				Segments[1].ANGLE = 0.0;
-				Segments[2].DIST = 0.0;
-				Segments[2].ANGLE = Segments[1].ANGLE;
-				break;
-			case BOT_ON_RIGHT:
-				Segments[0].DIST = 95.0;
-				Segments[0].ANGLE = 90.0;
-				Segments[1].DIST = 36.0;
-				Segments[1].ANGLE = 0.0;
-				Segments[2].DIST = 0.0;
-				Segments[2].ANGLE = Segments[1].ANGLE;
-				break;
-			case BOT_POS_FAILURE:
-				Segments[0].DIST = 0.0;
-				Segments[0].ANGLE = 0.0;
-				Segments[1].DIST = 0.0;
-				Segments[1].ANGLE = 0.0;
-				Segments[2].DIST = 0.0;
-				Segments[2].ANGLE = 0.0;
-				break;
-			}
-			break;
-		case FIELD_FAILURE:
-			Segments[0].DIST = 0.0;
-			Segments[0].ANGLE = 0.0;
-			Segments[1].DIST = 0.0;
-			Segments[1].ANGLE = 0.0;
-			Segments[2].DIST = 0.0;
-			Segments[2].ANGLE = 0.0;
-			break;
-		}
+        if(runSwitch) {
+            switch (switchposition_cl) {
+                case LEFT_FIELD:
+                    switch (fieldPos) {
+                        case BOT_ON_LEFT:
+                            Segments[0].DIST = 168.0;
+                            Segments[0].ANGLE = 90.0;
+                            Segments[1].DIST = 4.0;
+                            Segments[1].ANGLE = 0.0;
+                            Segments[2].DIST = 0.0;
+                            Segments[2].ANGLE = Segments[1].ANGLE;
+                            break;
+                        case BOT_ON_CENTER:
+                            Segments[0].DIST = 95.0;
+                            Segments[0].ANGLE = -90.0;
+                            Segments[1].DIST = 115.0;
+                            Segments[1].ANGLE = -90.0;
+                            Segments[2].DIST = 97.0;
+                            Segments[2].ANGLE = 90.0;
+							Segments[3].DIST = 30.0;
+							Segments[3].ANGLE = 0.0;
+                            break;
+                        case BOT_ON_RIGHT:
+                            Segments[0].DIST = 95.0;
+                            Segments[0].ANGLE = -90.0;
+                            Segments[1].DIST = 240.0;
+                            Segments[1].ANGLE = 90.0;
+                            Segments[2].DIST = 95.0;
+                            Segments[2].ANGLE = 90.0;
+							Segments[3].DIST = 20.0;
+							Segments[3].ANGLE = 0.0;
+                            break;
+                        case BOT_POS_FAILURE:
+                            Segments[0].DIST = 0.0;
+                            Segments[0].ANGLE = 0.0;
+                            Segments[1].DIST = 0.0;
+                            Segments[1].ANGLE = 0.0;
+                            Segments[2].DIST = 0.0;
+                            Segments[2].ANGLE = 0.0;
+                            break;
+                    }
+                    break;
+                case RIGHT_FIELD:
+                    switch (fieldPos) {
+                        case BOT_ON_LEFT:
+							Segments[0].DIST = 95.0;
+							Segments[0].ANGLE = 90.0;
+							Segments[1].DIST = 240.0;
+							Segments[1].ANGLE = -90.0;
+							Segments[2].DIST = 60.0;
+							Segments[2].ANGLE = -90.0;
+							Segments[3].DIST = 20.0;
+							Segments[3].ANGLE = 0.0;
+                            break;
+                        case BOT_ON_CENTER:
+							Segments[0].DIST = 95.0;
+							Segments[0].ANGLE = 90.0;
+							Segments[1].DIST = 115.0;
+							Segments[1].ANGLE = -90.0;
+							Segments[2].DIST = 95.0;
+							Segments[2].ANGLE = -90.0;
+							Segments[3].DIST = 20.0;
+							Segments[3].ANGLE = 0.0;
+                            break;
+                        case BOT_ON_RIGHT:
+                            Segments[0].DIST = 95.0;
+                            Segments[0].ANGLE = 90.0;
+                            Segments[1].DIST = 36.0;
+                            Segments[1].ANGLE = 0.0;
+                            Segments[2].DIST = 0.0;
+                            Segments[2].ANGLE = Segments[1].ANGLE;
+                            break;
+                        case BOT_POS_FAILURE:
+                            Segments[0].DIST = 0.0;
+                            Segments[0].ANGLE = 0.0;
+                            Segments[1].DIST = 0.0;
+                            Segments[1].ANGLE = 0.0;
+                            Segments[2].DIST = 0.0;
+                            Segments[2].ANGLE = 0.0;
+                            break;
+                    }
+                    break;
+                case FIELD_FAILURE:
+                    Segments[0].DIST = 0.0;
+                    Segments[0].ANGLE = 0.0;
+                    Segments[1].DIST = 0.0;
+                    Segments[1].ANGLE = 0.0;
+                    Segments[2].DIST = 0.0;
+                    Segments[2].ANGLE = 0.0;
+                    break;
+            }
+        }
+        if(runScale){
+            //TODO Make run scale program
+            switch (scaleposition) {
+                case LEFT_FIELD:
+                    switch (fieldPos) {
+                        case BOT_ON_LEFT:
+                            Segments[0].DIST = 317.0; //263 +54
+                            Segments[0].ANGLE = 90.0;
+                            Segments[1].DIST = 0.0;
+                            Segments[1].ANGLE = 0.0;
+                            Segments[2].DIST = 0.0;
+                            Segments[2].ANGLE = Segments[1].ANGLE;
+							// Rise elevator to Top, eject cube.
+                            break;
+                        case BOT_ON_CENTER:
+                            Segments[0].DIST = 95.0;
+                            Segments[0].ANGLE = -90.0;
+                            Segments[1].DIST = 36.0;
+                            Segments[1].ANGLE = 0.0;
+                            Segments[2].DIST = 0.0;
+                            Segments[2].ANGLE = Segments[1].ANGLE;
+                            break;
+                        case BOT_ON_RIGHT:
+                            Segments[0].DIST = 95.0;
+                            Segments[0].ANGLE = -90.0;
+                            Segments[1].DIST = 48.0;
+                            Segments[1].ANGLE = 0.0;
+                            Segments[2].DIST = 0.0;
+                            Segments[2].ANGLE = Segments[1].ANGLE;
+                            break;
+                        case BOT_POS_FAILURE:
+                            Segments[0].DIST = 0.0;
+                            Segments[0].ANGLE = 0.0;
+                            Segments[1].DIST = 0.0;
+                            Segments[1].ANGLE = 0.0;
+                            Segments[2].DIST = 0.0;
+                            Segments[2].ANGLE = 0.0;
+                            break;
+                    }
+                    break;
+                case RIGHT_FIELD:
+                    switch (fieldPos) {
+                        case BOT_ON_LEFT:
+                            Segments[0].DIST = 95.0;
+                            Segments[0].ANGLE = 90.0;
+                            Segments[1].DIST = 12.0;
+                            Segments[1].ANGLE = 0.0;
+                            Segments[2].DIST = 0.0;
+                            Segments[2].ANGLE = Segments[1].ANGLE;
+                            break;
+                        case BOT_ON_CENTER:
+                            Segments[0].DIST = 95.0;
+                            Segments[0].ANGLE = 90.0;
+                            Segments[1].DIST = 24.0;
+                            Segments[1].ANGLE = 0.0;
+                            Segments[2].DIST = 0.0;
+                            Segments[2].ANGLE = Segments[1].ANGLE;
+                            break;
+                        case BOT_ON_RIGHT:
+							Segments[0].DIST = 95.0;
+							Segments[0].ANGLE = -90.0;
+							Segments[1].DIST = 24.0;
+							Segments[1].ANGLE = 0.0;
+							Segments[2].DIST = 0.0;
+							Segments[2].ANGLE = Segments[1].ANGLE;
+                            break;
+                        case BOT_POS_FAILURE:
+                            Segments[0].DIST = 0.0;
+                            Segments[0].ANGLE = 0.0;
+                            Segments[1].DIST = 0.0;
+                            Segments[1].ANGLE = 0.0;
+                            Segments[2].DIST = 0.0;
+                            Segments[2].ANGLE = 0.0;
+                            break;
+                    }
+                    break;
+                case FIELD_FAILURE:
+                    Segments[0].DIST = 0.0;
+                    Segments[0].ANGLE = 0.0;
+                    Segments[1].DIST = 0.0;
+                    Segments[1].ANGLE = 0.0;
+                    Segments[2].DIST = 0.0;
+                    Segments[2].ANGLE = 0.0;
+                    break;
+            }
+        }
+
+            if(MultiCube){
+                bool switch_2_cube = SmartDashboard::GetBoolean("2cubeSwitch",!!0);
+                bool switch_and_scale_2_cube = SmartDashboard::GetBoolean("2cubeSwitch+scale",!!0);
+                bool scale_2_cube = SmartDashboard::GetBoolean("2cubeScale",!!0);
+                if(switch_2_cube){
+
+                }
+                if(switch_and_scale_2_cube){
+
+                }
+                if(scale_2_cube){
+
+                }
+            }
 
 	}
 	void TURN_PARAM_SET() {
@@ -527,8 +674,8 @@ return doneTurning;
 	void AutonomousInit() override {
 		//TODO Renable later.
 //		scaleString.SetString(DriverStation::GetInstance().GetGameSpecificMessage());
-		SmartDashboard::PutString("Game Data", DriverStation::GetInstance().GetGameSpecificMessage());
-		fieldPos = SmartDashboard::GetNumber("Robot Position", 3);
+		// SmartDashboard::PutString("Game Data", DriverStation::GetInstance().GetGameSpecificMessage());
+		//fieldPos = SmartDashboard::GetNumber("Robot Position", 3);
 		SEGMENT_DATA_SET(DriverStation::GetInstance().GetGameSpecificMessage());
 		SHIFT_LOW();
 
@@ -573,7 +720,7 @@ return doneTurning;
 		} else if (autonomousTimer->Get() <= 2.0) {
 			elevatorMasterMotor->Set(ControlMode::Position, 2000);
 		} else if (autonomousTimer->Get() <= 15.0) {
-			if(driveState <= 3) {
+			if(driveState <= 5) {
 				if(!doneDriving) {
 					//The below state checker should only set the turn PID parameters once only.
 					if(drivingParamTest) {
