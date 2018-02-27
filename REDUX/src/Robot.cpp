@@ -21,14 +21,11 @@
 #include <networktables/NetworkTableInstance.h>
 #include <networktables/NetworkTableEntry.h>
 #include <string>
-#include <SerialPort.h>
 using namespace std;
 using namespace nt;
 class Robot : public frc::IterativeRobot {
 public:
-	//WHO TOUCH MA S P A G H E T.
 	//Creates three Leg_Data structs as writable segments for use in autonomous control.
-	//HAIL HYDRA.
 	struct Leg_Data{
 		double DIST;
 		double ANGLE;
@@ -43,10 +40,10 @@ public:
 	enum switchpositionValues{
 		LEFT_FIELD = 0,
 		RIGHT_FIELD = 1,
-		FIELD_FAILURE = 3,
+		FIELD_FAILURE = 2,
 	};
 	//Creates enum values based on robot positioning for use in autonomous.
-	enum ROBOT_STARTING_POS{
+	enum robotStartingPosition{
 		BOT_ON_LEFT = 0,
 		BOT_ON_CENTER = 1,
 		BOT_ON_RIGHT = 2,
@@ -54,42 +51,37 @@ public:
 	};
 	//Creates enum values for the joysticks for intuitiveness.
 	enum rightJoystickMap{
+		ACTUATOR_TOGGLE = 1,
 		GEAR_CHANGE = 2,
 	};
 	enum leftJoystickMap{
-		ACTUATOR_IN = 1,
-		ACTUATOR_OUT = 2,
-		ELEVATOR_UP = 3,
-		ELEVATOR_DOWN = 4,
+		JOYSTICK_ACTUATOR_UP = 1,
+		JOYSTICK_ACTUATOR_DOWN = 5,
 		INTAKE = 5,
 		OUTAKE = 6,
-		WINCH = 7,
 	};
 	enum gamepadMap{
-		ELEVATOR_CONTROL_UP = 1,
-		ELEVATOR_CONTROL_DOWN = 2,
-		INTAKE_CONTROL_IN = 3,
-		INTAKE_CONTOL_OUT = 4,
-	};
-	//Creates enum values for my behavior states.
-	enum ANGEL_STATES{
-		NORMAL = 0,
-		CHAOTIC_NEUTRAL = 1,
-		IOSIF_STALIN = 2,
-		HAMMER_TIME = 3,
-		END_MY_SUFFERING = 4,
+		ARM_PISTON_IN = 1,
+		ARM_PISTON_OUT= 2,
+		GAMEPAD_ACTUATOR_DOWN = 1,
+		GAMEPAD_ACTUATOR_UP = 5,
 	};
 	bool isTracking;
 	bool isHighGear;
+	bool isActuator;
 	bool isTurnState;
 	bool isDriveState;
+	bool isArmOut;
+	bool isArmIn;
 	bool shiftingSoloTest;
-	bool turningSoloTest;
-	bool drivingSoloTest;
+	bool actuatorSoloTest;
+	bool turningParamTest;
+	bool drivingParamTest;
 	bool targetReached;
 	bool doneDriving;
 	bool doneTurning;
 	int autoMode;
+	//Int to keep track of robot position on the field when placed.
 	int fieldPos;
 	//Control variable used for scheduling which "segment" to carry out.
 	//Whether it be turning, or driving forward.
@@ -107,8 +99,10 @@ public:
 	double combinedGyroValue;
 	double robotThrottle;
 	double robotSteer;
-	double elevatorThrottle;
+	double elevatorJoystickThrottle;
+	double elevatorGamepadThrottle;
 	//Variable for use in the TURN_TO_ANGLE function as the setpoint.
+	double intakeThrottle;
 	double autonomousAngleSet;
 	//Variable for use in the DRIVE_TO_DISTANCE function as the setpoint.
 	double autonomousDistanceSet;
@@ -135,16 +129,13 @@ public:
 	TalonSRX *rightSlaveMotor;
 	TalonSRX *elevatorMasterMotor;
 	TalonSRX *elevatorSlaveMotor;
-	TalonSRX *winchMasterMotor;
-	TalonSRX *winchSlaveMotor;
 	TalonSRX *intakeMasterMotor;
 	TalonSRX *intakeSlaveMotor;
 	TalonSRX *actuatorMotor;
-	TalonSRX *theLonelyMotor;
 	//DoubleSolenoid double actuating valve for shifting mechanism.
 	DoubleSolenoid *gearBox;
 	//DoubleSolenoid double actuating valve for cube grabbing mechanism.
-	DoubleSolenoid *armActuator;
+	DoubleSolenoid *intakeArmActuator;
 	//The SPI port gyroscope, designated by name.
 	ADXRS450_Gyro *ADXGyro;
 	//NAVX sensor and navigation board.
@@ -154,19 +145,23 @@ public:
 	Joystick *rightJoystick;
 	Joystick *PS4Gamepad;
 	//Creation of NetworkTableEntries for entries in the NetworkTable.
-	NetworkTableEntry cameraErrorAngle;
-	NetworkTableEntry trackingState;
-	NetworkTableEntry ultrasonicDistance;
-	NetworkTableEntry dataSink;
-	NetworkTableEntry scaleString;
+	//Note the lack of a *, this is because of interaction between pointer and NetworkTableEntry.
+	//TODO Renable these NetorkTableEntry objects later after Clackamas.
+//	NetworkTableEntry cameraErrorAngle;
+//	NetworkTableEntry trackingState;
+//	NetworkTableEntry ultrasonicDistance;
+//	NetworkTableEntry dataSink;
+//	NetworkTableEntry scaleString;
 	void RobotInit() {
 		isTracking = false;
 		isHighGear = false;
+		isActuator = false;
 		isTurnState = true;
 		isDriveState = true;
 		shiftingSoloTest = true;
-		turningSoloTest = true;
-		drivingSoloTest = true;
+		actuatorSoloTest = true;
+		turningParamTest = true;
+		drivingParamTest = true;
 		targetReached = false;
 		doneDriving = false;
 		doneTurning = false;
@@ -177,39 +172,41 @@ public:
 		rioGyro = 0;
 		combinedGyroValue = 0;
 		robotThrottle = 0;
+		elevatorJoystickThrottle = 0;
+		elevatorGamepadThrottle = 0;
+		intakeThrottle = 0;
 		robotSteer = 0;
 		autonomousAngleSet = 0;
 		autonomousRange= 0;
-		allianceColor = "";
 
 		leftMasterMotor = new TalonSRX(1);
 		leftSlaveMotor = new TalonSRX(2);
 		rightMasterMotor = new TalonSRX(3);
 		rightSlaveMotor = new TalonSRX(4);
+
 		elevatorMasterMotor = new TalonSRX(5);
 		elevatorSlaveMotor = new TalonSRX(6);
+
 		intakeMasterMotor = new TalonSRX(7);
 		intakeSlaveMotor = new TalonSRX(8);
-		winchMasterMotor = new TalonSRX(9);
-		winchSlaveMotor = new TalonSRX(10);
-		actuatorMotor = new TalonSRX(11);
-		theLonelyMotor = new TalonSRX(12);
+
+		actuatorMotor = new TalonSRX(9);
 
 		gearBox = new DoubleSolenoid(1, 2);
-		armActuator = new DoubleSolenoid(3,4)
+		intakeArmActuator = new DoubleSolenoid(3, 4);
 		//This try/catch should connect the NAVX.
 		//Will spit out an error message if failed.
         try {
             NAVXBoard = new AHRS(SPI::Port::kMXP);
         } catch (exception failure ) {
-            string errorString = "Error instantiating navX-MXP: NAVXBoard";
+            string errorString = "Error instantiating NAVXBoard";
             errorString += failure.what();
             DriverStation::ReportError(errorString.c_str());
         }
         	//SENSORS, JOYSTICKS, ACCELEROMETERS, ETC.
 		leftJoystick = new Joystick(0);
 		rightJoystick = new Joystick(1);
-		PS4Gamepad = new Joystick(2);
+		PS4Gamepad = new Joystick(0);
 		ADXGyro = new ADXRS450_Gyro();
 		autonomousTimer = new Timer();
 
@@ -229,13 +226,10 @@ public:
 		elevatorSlaveMotor->Set(ControlMode::Follower, 5);
 		intakeMasterMotor->Set(ControlMode::PercentOutput, 0);
 		intakeSlaveMotor->Set(ControlMode::Follower, 7);
-		winchMasterMotor->Set(ControlMode::PercentOutput, 0);
-		winchSlaveMotor->Set(ControlMode::Follower, 9);
-
 		actuatorMotor->Set(ControlMode::PercentOutput, 0);
-			//INTERNAL PID SETUP
 
-		//The pidxid of the sensor can be found off the configuration of the Roborio.
+		//TalonSRX PID parameter setup.
+		//The pidxid of the sensor can be found in the web-configuration page of the Roborio.
 		//Should be a 0, multiple id values not supported (yet).
 		//Selects the sensor type and the channel the sensor is communicating on.
 		leftMasterMotor->ConfigSelectedFeedbackSensor(FeedbackDevice::CTRE_MagEncoder_Relative, 0, 10);
@@ -245,13 +239,9 @@ public:
 		//Sets up the various PIDF values to tune the motor output.
 		//P = (Desired motor output percentage * 1023)/(error).
 		leftMasterMotor->Config_kF(0, 0.0, 10);
-		//Base P value = 0.0075.
 		leftMasterMotor->Config_kP(0, 0.0085, 10);
 		leftMasterMotor->Config_kI(0, 0.0, 10);
-		//Base D value = 0.05.
 		leftMasterMotor->Config_kD(0, 0.50, 10);
-		leftMasterMotor->ConfigMotionCruiseVelocity(2048, 10);
-		leftMasterMotor->ConfigMotionAcceleration(1024, 10);
 
 		rightMasterMotor->ConfigSelectedFeedbackSensor(FeedbackDevice::CTRE_MagEncoder_Relative, 0, 10);
 		rightMasterMotor->SetSensorPhase(false);
@@ -259,15 +249,9 @@ public:
 		rightMasterMotor->Config_kP(0, 0.0075, 10);
 		rightMasterMotor->Config_kI(0, 0.0, 10);
 		rightMasterMotor->Config_kD(0, 0.50, 10);
-		rightMasterMotor->ConfigMotionCruiseVelocity(2048, 10);
-		rightMasterMotor->ConfigMotionAcceleration(1024, 10);
 
 		elevatorMasterMotor->ConfigSelectedFeedbackSensor(FeedbackDevice::CTRE_MagEncoder_Relative, 0, 10);
 		elevatorMasterMotor->SetSensorPhase(true);
-		elevatorMasterMotor->ConfigNominalOutputForward(0, 10);
-		elevatorMasterMotor->ConfigNominalOutputReverse(0, 10);
-		elevatorMasterMotor->ConfigPeakOutputForward(1, 10);
-		elevatorMasterMotor->ConfigPeakOutputReverse(-1, 10);
 		elevatorMasterMotor->Config_kF(0, 0.0, 10);
 		elevatorMasterMotor->Config_kP(0, 0.0075, 10);
 		elevatorMasterMotor->Config_kI(0, 0.0, 10);
@@ -282,22 +266,26 @@ public:
 
 		leftMasterMotor->SetSelectedSensorPosition(0, 0, 10);
 		rightMasterMotor->SetSelectedSensorPosition(0, 0, 10);
+		//Ensure that the elevator is set to the LOWEST position on the linear slide.
+		//Additionally, ensure that there is no slack in the cables.
+		elevatorMasterMotor->SetSelectedSensorPosition(0, 0, 10);
 		//Sets up the NetworkTables for communication.
 		//Grabs the default NetworkTable the roboRio creates.
-		auto table = NetworkTableInstance::GetDefault();
-		//Creates a NetworkTable called Jetson based on the default NetworkTable.
-		auto networkTableData = table.GetTable("Jetson");
-		//Entry with the calculated error from the TX1.
-		cameraErrorAngle = networkTableData->GetEntry("angle");
-		//Entry with the state of the vision tracking, 1 = tracking, 0 = not.
-		trackingState = networkTableData->GetEntry("V_Working");
-		//Entry with the ultrasonic distance.
-		ultrasonicDistance = networkTableData->GetEntry("Distance");
-		//Entry with the switch/scale position string.
-		//Retrieved from the DriverStation.
-		scaleString = networkTableData->GetEntry("scaleString");
-
-		dataSink = networkTableData->GetEntry("processed");
+		//TODO Renable NetworkTable code after Clackamas.
+//		auto table = NetworkTableInstance::GetDefault();
+//		//Creates a NetworkTable called Jetson based on the default NetworkTable.
+//		auto networkTableData = table.GetTable("Jetson");
+//		//Entry with the calculated error from the TX1.
+//		cameraErrorAngle = networkTableData->GetEntry("angle");
+//		//Entry with the state of the vision tracking, 1 = tracking, 0 = not.
+//		trackingState = networkTableData->GetEntry("V_Working");
+//		//Entry with the ultrasonic distance.
+//		ultrasonicDistance = networkTableData->GetEntry("Distance");
+//		//Entry with the switch/scale position string.
+//		//Retrieved from the DriverStation.
+//		scaleString = networkTableData->GetEntry("scaleString");
+//
+//		dataSink = networkTableData->GetEntry("processed");
 	}
 	//Input a turn angle, calculate the position needed, and rotate as such.
 	//Output a success statement.
@@ -372,52 +360,38 @@ return doneTurning;
 		}
 		return doneDriving;
 	}
-	void TURN_PARAM_SET() {
-		leftMasterMotor->Config_kF(0, 0.0, 10);
-		leftMasterMotor->Config_kP(0, 0.5, 10);
-		leftMasterMotor->Config_kI(0, 0.0, 10);
-		leftMasterMotor->Config_kD(0, 0.50, 10);
-
-		rightMasterMotor->Config_kF(0, 0.0, 10);
-		rightMasterMotor->Config_kP(0, 0.5, 10);
-		rightMasterMotor->Config_kI(0, 0.0, 10);
-		rightMasterMotor->Config_kD(0, 0.50, 10);
-	}
-	void DRIVE_PARAM_SET() {
-		leftMasterMotor->Config_kF(0, 0.0, 10);
-		leftMasterMotor->Config_kP(0, 0.0085, 10);
-		leftMasterMotor->Config_kI(0, 0.0, 10);
-		leftMasterMotor->Config_kD(0, 0.50, 10);
-
-		rightMasterMotor->Config_kF(0, 0.0, 10);
-		rightMasterMotor->Config_kP(0, 0.0075, 10);
-		rightMasterMotor->Config_kI(0, 0.0, 10);
-		rightMasterMotor->Config_kD(0, 0.50, 10);
-	}
-	void SEGMENT_SELECTION (double processedData) {
+	void SEGMENT_DATA_SET (string inputData) {
 		//switchPosition indicates where the switch is located, 0 = left, 1 = right.
 		bool LLL = false;
 		bool RRR = false;
 		bool LRL = false;
 		bool RLR = false;
+		string position;
+		position = inputData;
+		//switchPosition indicates where the switch is located, 0 = left, 1 = right.
+		int switchposition;
+		//String parsing code.
 		if(position == "LLL") {
-					LLL = true;
+			LLL = true;
 		} else if(position == "RRR") {
-					RRR = true;
+			RRR = true;
 		} else if(position == "LRL") {
-					LRL = true;
+			LRL = true;
 		} else if(position == "RLR") {
-					RLR = true;
+			RLR = true;
 		}
+		//Assigns 0 to the left side, 1 to the right side.
 		if (LLL) {
-				switchposition = 0;
+			switchposition = 0;
 		} else if (RRR) {
-				switchposition = 1;
+			switchposition = 1;
 		} else if (LRL) {
-				switchposition = 0;
+			switchposition = 0;
 		} else if (RLR) {
-				switchposition = 1;
-		int switchposition = processedData;
+			switchposition = 1;
+		} else {
+			switchposition = 2;
+		}
 		switch (switchposition) {
 		case LEFT_FIELD:
 			switch (fieldPos) {
@@ -502,6 +476,29 @@ return doneTurning;
 		}
 
 	}
+	void TURN_PARAM_SET() {
+		//This function, and DRIVE_PARAM_SET, should set up the PID values once in the autonomous periodic code.
+		leftMasterMotor->Config_kF(0, 0.0, 10);
+		leftMasterMotor->Config_kP(0, 0.5, 10);
+		leftMasterMotor->Config_kI(0, 0.0001, 10);
+		leftMasterMotor->Config_kD(0, 0.050, 10);
+
+		rightMasterMotor->Config_kF(0, 0.0, 10);
+		rightMasterMotor->Config_kP(0, 0.5, 10);
+		rightMasterMotor->Config_kI(0, 0.0001, 10);
+		rightMasterMotor->Config_kD(0, 0.050, 10);
+	}
+	void DRIVE_PARAM_SET() {
+		leftMasterMotor->Config_kF(0, 0.0, 10);
+		leftMasterMotor->Config_kP(0, 0.0085, 10);
+		leftMasterMotor->Config_kI(0, 0.0, 10);
+		leftMasterMotor->Config_kD(0, 0.50, 10);
+
+		rightMasterMotor->Config_kF(0, 0.0, 10);
+		rightMasterMotor->Config_kP(0, 0.0075, 10);
+		rightMasterMotor->Config_kI(0, 0.0, 10);
+		rightMasterMotor->Config_kD(0, 0.50, 10);
+	}
 	void SHIFT_HIGH () {
 		gearBox->Set(DoubleSolenoid::kForward);
 		frc::Wait(0.5);
@@ -514,8 +511,26 @@ return doneTurning;
 		gearBox->Set(DoubleSolenoid::kOff);
 		isHighGear =! isHighGear;
 	}
+	void INTAKE_ARM_IN() {
+		intakeArmActuator->Set(DoubleSolenoid::kForward);
+		frc::Wait(0.5);
+		gearBox->Set(DoubleSolenoid::kOff);
+		isActuator =! isActuator;
+
+	}
+	void INTAKE_ARM_OUT() {
+		intakeArmActuator->Set(DoubleSolenoid::kReverse);
+		frc::Wait(0.5);
+		gearBox->Set(DoubleSolenoid::kOff);
+		isActuator =! isActuator;
+	}
 	void AutonomousInit() override {
-		scaleString.SetString(DriverStation::GetInstance().GetGameSpecificMessage());
+		//TODO Renable later.
+//		scaleString.SetString(DriverStation::GetInstance().GetGameSpecificMessage());
+		SmartDashboard::PutString("Game Data", DriverStation::GetInstance().GetGameSpecificMessage());
+		fieldPos = SmartDashboard::GetNumber("Robot Position", 3);
+		SEGMENT_DATA_SET(DriverStation::GetInstance().GetGameSpecificMessage());
+		SHIFT_LOW();
 
 		leftMasterMotor->Config_kF(0, 0.0, 10);
 		leftMasterMotor->Config_kP(0, 0.0085, 10);
@@ -540,8 +555,6 @@ return doneTurning;
 		NAVXBoard->Reset();
 		ADXGyro->Reset();
 		//TODO Change the default value back to -1.0 when finished with testing.
-		SEGMENT_SELECTION(dataSink.GetDouble(0.0));
-		SHIFT_LOW();
 
 		driveState = SEG_1;
 		doneDriving = false;
@@ -552,35 +565,43 @@ return doneTurning;
 		//Selection based on switch position, or robotic position.
 		//isTracking will need to be retrieved from networktables.
 		//Time and Ultrasonic Distance will need to be sent to Jeff.
-		float angle = cameraErrorAngle.GetDouble(Segments[driveState].ANGLE);
-		int isTracking = trackingState.GetDouble(0.0);
-		while(autonomousTimer->Get() <= 15) {
-			if(isTracking == 0) {
+		//TODO Renable later.
+//		float angle = cameraErrorAngle.GetDouble(Segments[driveState].ANGLE);
+//		int isTracking = trackingState.GetDouble(0.0);
+		if(autonomousTimer->Get() <= 1.0) {
+			actuatorMotor->Set(ControlMode::PercentOutput, 0.5);
+		} else if (autonomousTimer->Get() <= 2.0) {
+			elevatorMasterMotor->Set(ControlMode::Position, 2000);
+		} else if (autonomousTimer->Get() <= 15.0) {
+			if(driveState <= 3) {
 				if(!doneDriving) {
 					//The below state checker should only set the turn PID parameters once only.
-					if(drivingSoloTest) {
-							DRIVE_PARAM_SET();
-							Wait(0.5);
-							leftMasterMotor->SetSelectedSensorPosition(0, 0, 10);
-							rightMasterMotor->SetSelectedSensorPosition(0, 0, 10);
-					drivingSoloTest = false;
+					if(drivingParamTest) {
+						DRIVE_PARAM_SET();
+						frc::Wait(0.5);
+						leftMasterMotor->SetSelectedSensorPosition(0, 0, 10);
+						rightMasterMotor->SetSelectedSensorPosition(0, 0, 10);
+						drivingParamTest = false;
 					}
-					doneDriving = DRIVE_TO_DISTANCE(Segments[driveState].DIST);
-					SmartDashboard::PutNumber("Current Distance", Segments[driveState].DIST);
-					SmartDashboard::PutNumber("Current Angle", Segments[driveState].ANGLE);
-					SmartDashboard::PutString("Control State", "Moving Forward!");
-					SmartDashboard::PutString("Turning State?", "Not Turning!");
-					SmartDashboard::PutBoolean("Driving State", doneDriving);
-					SmartDashboard::PutBoolean("Turning State", driveState);
+						doneDriving = DRIVE_TO_DISTANCE(Segments[driveState].DIST);
+						SmartDashboard::PutNumber("Current Distance", Segments[driveState].DIST);
+						SmartDashboard::PutNumber("Current Angle", Segments[driveState].ANGLE);
+						SmartDashboard::PutString("Control State", "Moving Forward!");
+						SmartDashboard::PutString("Turning State?", "Not Turning!");
+						SmartDashboard::PutBoolean("Driving State", doneDriving);
+						SmartDashboard::PutBoolean("Turning State", driveState);
 				} else if (doneDriving && !doneTurning) {
-					if(turningSoloTest) {
-							TURN_PARAM_SET();
-							Wait(0.5);
-					turningSoloTest = false;
+					if(turningParamTest) {
+						TURN_PARAM_SET();
+						frc::Wait(0.5);
+						turningParamTest = false;
+					} else {
+						turningParamTest = false;
 					}
 					doneTurning = TURN_TO_ANGLE(Segments[driveState].ANGLE);
 					SmartDashboard::PutNumber("Current Distance", Segments[driveState].DIST);
 					SmartDashboard::PutNumber("Current Angle", Segments[driveState].ANGLE);
+					SmartDashboard::PutString("Control State", "Not Moving Forward!");
 					SmartDashboard::PutString("Control State", "Turning!");
 					SmartDashboard::PutBoolean("Driving State", doneDriving);
 					SmartDashboard::PutBoolean("Turning State", driveState);
@@ -591,29 +612,31 @@ return doneTurning;
 					SmartDashboard::PutNumber("Completed Segment:", driveState);
 					SmartDashboard::PutBoolean("Driving State", doneDriving);
 					SmartDashboard::PutBoolean("Turning State", driveState);
-					turningSoloTest = true;
-					drivingSoloTest = true;
+					turningParamTest = true;
+					drivingParamTest = true;
 					doneDriving = false;
 					doneTurning = false;
-
-				} else {
+				}
+					//TODO The below Vision Code will be implemented later.
+	//			if(isTracking == 1) {
+	//				if(angle < 0) {
+	//					angle -= 10;
+	//				} else {
+	//					angle += 10;
+	//				}
+	//				doneTurning = TURN_TO_ANGLE(angle);
+	//				SmartDashboard::PutNumber("Angle Error", angle);
+	//				SmartDashboard::PutBoolean("Driving State", doneDriving);
+	//				SmartDashboard::PutBoolean("Turning State", driveState);
+	//				if(doneTurning) {
+	//				} else if(doneTurning && doneDriving) {
+	//					elevatorMasterMotor->Set(ControlMode::Position, 2048.0);
+	//				}
+	//			}
+			} else if(driveState > 3) {
 					leftMasterMotor->Set(ControlMode::PercentOutput, 0);
 					rightMasterMotor->Set(ControlMode::PercentOutput, 0);
-				}
-			} else if(isTracking == 1) {
-				if(angle < 0) {
-					angle -= 10;
-				} else {
-					angle += 10;
-				}
-				doneTurning = TURN_TO_ANGLE(angle);
-				SmartDashboard::PutNumber("Angle Error", angle);
-				SmartDashboard::PutBoolean("Driving State", doneDriving);
-				SmartDashboard::PutBoolean("Turning State", driveState);
-				if(doneTurning) {
-				} else if(doneTurning && doneDriving) {
-					elevatorMasterMotor->Set(ControlMode::Position, 2048.0);
-				}
+					intakeMasterMotor->Set(ControlMode::PercentOutput, -1.0);
 			}
 		}
 	}
@@ -626,7 +649,7 @@ return doneTurning;
 
 		leftMasterMotor->Set(ControlMode::PercentOutput, 0);
 		rightMasterMotor->Set(ControlMode::PercentOutput, 0);
-		//This function should aways put us into low gear, regardless of previous gear setting.
+		//This function should always put us into low gear, regardless of previous gear setting.
 		if(!isHighGear){
 			SHIFT_LOW();
 		}
@@ -641,6 +664,8 @@ return doneTurning;
 
 	}
 	void TeleopPeriodic() {
+		bool GamepadState;
+//		double intakeDirection;
 		//Thresholds are set to 5% of the Joystick's range.
 		if(abs(rightJoystick->GetY()) < 0.05) {
 			robotThrottle = 0;
@@ -652,78 +677,101 @@ return doneTurning;
 		} else {
 			robotSteer = rightJoystick->GetX();
 		}
-
 		leftMasterMotor->Set(ControlMode::PercentOutput, robotThrottle - robotSteer);
 		rightMasterMotor->Set(ControlMode::PercentOutput, -robotThrottle - robotSteer);
+
+		intakeThrottle = PS4Gamepad->GetY();
+
+		if(leftJoystick->GetRawButton(3)) {
+			intakeThrottle = -1.0;
+		}
+		if(leftJoystick->GetRawButton(4)) {
+			intakeThrottle = 1.0;
+		}
+
+		intakeMasterMotor->Set(ControlMode::PercentOutput, intakeThrottle);
+
+		//soloTest acts as a single limiter to keep the if/else loop from running indefinitely.
+		//If the button is pressed, and since soloTest is true, state should run the if/else once
 		if(rightJoystick->GetRawButton(rightJoystickMap::GEAR_CHANGE) && shiftingSoloTest) {
-			//soloTest acts as a single limiter to keep the if/else loop from running indefinitely.
-			//If the button is pressed, and since soloTest is true, state should run the if/else once
 			if(isHighGear) {
 				SHIFT_HIGH();
 			} else if(!isHighGear) {
 				SHIFT_LOW();
 			}
-		shiftingSoloTest = false;
+			shiftingSoloTest = false;
 		}
 		if(!rightJoystick->GetRawButton(rightJoystickMap::GEAR_CHANGE)) {
 			shiftingSoloTest = true;
 		}
-		if(leftJoystick->GetRawButton(leftJoystick::ELEVATOR_UP)) {
-			elevatorMasterMotor->Set(ControlMode::PercentOutput, 0.75);
+		//Toggle code toggling the actuator
+		if(leftJoystick->GetRawButton(rightJoystickMap::ACTUATOR_TOGGLE) && actuatorSoloTest) {
+			if(isActuator) {
+				INTAKE_ARM_OUT();
+			} else if(!isActuator) {
+				INTAKE_ARM_IN();
+			}
+			actuatorSoloTest = false;
 		}
-		if(leftJoystick->GetRawButton(leftJoystick::ELEVATOR_DOWN)) {
-			elevatorMasterMotor->Set(ControlMode::PercentOutput, -0.75);
+		if(!leftJoystick->GetRawButton(rightJoystickMap::ACTUATOR_TOGGLE)) {
+			actuatorSoloTest = true;
 		}
-		if(leftJoystick->GetRawButton(leftJoystick::ACTUATOR_IN)) {
-			armActuator->Set(DoubleSolenoid::kForward);
-			frc::Wait(0.5);
-			armActuator->Set(DoubleSolenoid::kOff);
+		//The gamepad does not need toggle code, only button based.
+		if(PS4Gamepad->GetRawButton(gamepadMap::ARM_PISTON_IN)) {
+			INTAKE_ARM_IN();
 		}
-		if(leftJoystick->GetRawButton(leftJoystick::ACTUATOR_OUT)) {
-			armActuator->set(DoubleSolenoid::kReverse);
-			frc::Wait(0.5);
-			armActuator->set(DoubleSolenoid::kOff);
+		if(PS4Gamepad->GetRawButton(gamepadMap::ARM_PISTON_OUT)) {
+			INTAKE_ARM_OUT();
 		}
-		if(leftJoystick->GetRawButton(leftJoystick::INTAKE)) {
-			//INTAKE MOTOR
+		//Actuator code for rotating the intake mechanism.
+		if(leftJoystick->GetPOV() == leftJoystickMap::JOYSTICK_ACTUATOR_DOWN) {
+			actuatorMotor->Set(ControlMode::PercentOutput, 0.5);
+		} else if(leftJoystick->GetPOV() == leftJoystickMap::JOYSTICK_ACTUATOR_UP) {
+			actuatorMotor->Set(ControlMode::PercentOutput, -0.5);
+		} else {
+			actuatorMotor->Set(ControlMode::PercentOutput, 0.0);
 		}
-		
-		if(leftJoystick->GetRawButton(leftJoystickMap::OUTAKE)) {
-			//INTAKE MOTOR
+		if(PS4Gamepad->GetPOV() == gamepadMap::GAMEPAD_ACTUATOR_DOWN) {
+			actuatorMotor->Set(ControlMode::PercentOutput, 0.5);
+		} else if(PS4Gamepad->GetPOV() == gamepadMap::GAMEPAD_ACTUATOR_UP) {
+			actuatorMotor->Set(ControlMode::PercentOutput, -0.5);
+		} else {
+			actuatorMotor->Set(ControlMode::PercentOutput, 0.0);
 		}
-		if(leftJoystick->GetRawButton(leftJoystickMap::WINCH)) {
-			//RUN NONEXISTANT MOTOR
+
+		//Master/Secondary if statements for the elevator lift.
+		//Should be a complete override if the joystick moves.
+		//Thresholds set to reduce "booping" errors.
+		if(abs(PS4Gamepad->GetRawAxis(5)) > 0.05) {
+			GamepadState = true;
 		}
-		if(PS4Gamepad->GetRawButton(gamepadMap::ELEVATOR_CONTROL_UP)){
-			elevatorMasterMotor->Set(ControlMode::PercentOutput, 0.75);
+		if(abs(leftJoystick->GetY()) > 0.1) {
+			GamepadState = false;
 		}
-		if(PS4Gamepad->GetRawButton(gamepadMap::ELEVATOR_CONTOL_DOWN)){
-			elevatorMasterMotor->Set(ControlMode::PercentOutput, -0.75);
+		if(!GamepadState){
+			elevatorGamepadThrottle = leftJoystick->GetY();
+			elevatorMasterMotor->Set(ControlMode::PercentOutput, elevatorGamepadThrottle);
+		} else if(GamepadState) {
+			elevatorGamepadThrottle = PS4Gamepad->GetRawAxis(5);
+			elevatorMasterMotor->Set(ControlMode::PercentOutput, elevatorJoystickThrottle);
 		}
-		if(PS4Gamepad->GetRawButton(gamepadMap::ACTUATOR_UP)){
-			actuatorMotor->Set(ControlMode::PercentOutput, 0.625);`
-		}
-		if(PS4Gamepad->GetRawButton(gamepadMap::ACTUATOR_DOWN)){
-			actuatorMotor->Set(ControlMode::PercentOutput, -0.25);
-		}
+
 		navxGyro = NAVXBoard->GetAngle();
 		rioGyro = ADXGyro->GetAngle();
 		combinedGyroValue = ((navxGyro + rioGyro)/2);
 
 		SmartDashboard::PutNumber("Composite Gyroscope Value", combinedGyroValue);
-		SmartDashboard::PutNumber("Vision Working State", trackingState.GetDouble(0.0));
-		SmartDashboard::PutNumber("Camera Error", cameraErrorAngle.GetDouble(180.0));
-		SmartDashboard::PutNumber("Switch Position", dataSink.GetDouble(-1));
-
+		SmartDashboard::PutNumber("Gamepad Throttle?", PS4Gamepad->GetRawAxis(5));
+		//TODO Renable later.
+//		SmartDashboard::PutNumber("Vision Working State", trackingState.GetDouble(0.0));
+//		SmartDashboard::PutNumber("Camera Error", cameraErrorAngle.GetDouble(180.0));
+//		SmartDashboard::PutNumber("Switch Position", dataSink.GetDouble(-1));
 
 		frc::Wait(0.005);
 	}
 	void TestPeriodic() {
 
 	}
-
 private:
-
 };
-
 START_ROBOT_CLASS(Robot)
