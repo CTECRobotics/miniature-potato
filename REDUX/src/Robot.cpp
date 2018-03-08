@@ -29,8 +29,9 @@ public:
 	struct Leg_Data{
 		double DIST;
 		double ANGLE;
+		double ACTION;
 	}Segments[6];
-	//For tracking the current segment during autonomous.
+	//Segment enums for tracking the current segment during autonomous.
 	enum segmentState{
 		SEG_1 = 0,
 		SEG_2 = 1,
@@ -58,31 +59,38 @@ public:
 		GEAR_CHANGE = 2,
 	};
 	enum leftJoystickMap{
-		JOYSTICK_ACTUATOR_UP = 1,
-		JOYSTICK_ACTUATOR_DOWN = 5,
-		INTAKE = 5,
-		OUTAKE = 6,
+
 	};
-	enum gamepadMap{
-		ARM_PISTON_IN = 1,
-		ARM_PISTON_OUT= 2,
-		GAMEPAD_ACTUATOR_DOWN = 1,
-		GAMEPAD_ACTUATOR_UP = 5,
+	enum XboxGamepadMap{
+		JOYSTICK_ACTUATOR_UP = 180,
+		JOYSTICK_ACTUATOR_DOWN = 0,
+		ELEVATOR_AXIS = 1,
+		INTAKE_AXIS = 5,
+		GAMEPAD_ACTUATOR_TOGGLE = 1,
 	};
-	bool isTracking;
+	//State checkers to ensure proper toggling operation for shifting.
 	bool isHighGear;
+	bool isInHighGear;
+	//State checkers to ensure proper toggling operation for pneumatic actuating.
 	bool isActuator;
-	bool isTurnState;
-	bool isDriveState;
-	bool isArmOut;
 	bool isArmIn;
+	//State checker for two driver control schemes.
+	bool isControl;
+	//Booleans for toggle state testing.
 	bool shiftingSoloTest;
 	bool actuatorSoloTest;
-	bool turningParamTest;
-	bool drivingParamTest;
-	bool targetReached;
+	bool controlSoloTest;
+	//Master toggle for swapping control schemes.
+	bool teleopMasterSwitch;
+	//Various parameters needed for proper driving function.
+	bool isTurnState;
+	bool isDriveState;
+
 	bool doneDriving;
 	bool doneTurning;
+
+	bool targetReached;
+
 	int autoMode;
 	//Int to keep track of robot position on the field when placed.
 	int fieldPos;
@@ -103,7 +111,7 @@ public:
 	double robotThrottle;
 	double robotSteer;
 	double elevatorJoystickThrottle;
-	double elevatorGamepadThrottle;
+	double elevatorThrottle;
 	//Variable for use in the TURN_TO_ANGLE function as the setpoint.
 	double intakeThrottle;
 	double autonomousAngleSet;
@@ -114,16 +122,6 @@ public:
 	string allianceColor;
 	//Quarter second wait time to allow air to flow through the system and shift the gears.
 	const float valveWait = 0.25;
-	//Proprietary unit for each Encoder rotation, 4096 units per rotation.
-	const float encoderRotTick = 4096.0;
-	const float PI = 3.1415;
-	//Calculation of circumference, used for autonomous driving control.
-	const float circumference = (PI*6.0);
-	//Calculation of converting returned ultrasonic sensor voltage to meaningful value.
-	const float masterUltrasonicConversion = (5000.0 * 39.4)/4.88;
-	//Ratio of gears from Encoder to actual driveshaft.
-	const float gearRatio = (2.0/15.0);
-	const float motorVelocity = 2048.0;
 	//Talons are arranged in a Master/Slave order when appropriate.
 	//Otherwise standalone.
 	TalonSRX *leftMasterMotor;
@@ -146,41 +144,45 @@ public:
 	Timer *autonomousTimer;
 	Joystick *leftJoystick;
 	Joystick *rightJoystick;
-	Joystick *PS4Gamepad;
+	Joystick *XboxGamepad;
 	//Creation of NetworkTableEntries for entries in the NetworkTable.
 	//Note the lack of a *, this is because of interaction between pointer and NetworkTableEntry.
-	//TODO Renable these NetorkTableEntry objects later after Clackamas.
 //	NetworkTableEntry cameraErrorAngle;
 //	NetworkTableEntry trackingState;
 //	NetworkTableEntry ultrasonicDistance;
 //	NetworkTableEntry dataSink;
 //	NetworkTableEntry scaleString;
 	void RobotInit() {
-		isTracking = false;
 		isHighGear = false;
 		isActuator = false;
-		isTurnState = true;
-		isDriveState = true;
+		isControl = false;
+
 		shiftingSoloTest = true;
 		actuatorSoloTest = true;
-		turningParamTest = true;
-		drivingParamTest = true;
-		targetReached = false;
+		controlSoloTest = true;
+
+		isTurnState = true;
+		isDriveState = true;
+
 		doneDriving = false;
 		doneTurning = false;
+
+		targetReached = false;
+
 		autoMode = 0;
 		fieldPos = 0;
+
 		gyroSetpoint = 0;
 		navxGyro = 0;
 		rioGyro = 0;
 		combinedGyroValue = 0;
+
 		robotThrottle = 0;
-		elevatorJoystickThrottle = 0;
-		elevatorGamepadThrottle = 0;
+		elevatorThrottle = 0;
 		intakeThrottle = 0;
 		robotSteer = 0;
+
 		autonomousAngleSet = 0;
-		autonomousRange= 0;
 
 		leftMasterMotor = new TalonSRX(1);
 		leftSlaveMotor = new TalonSRX(2);
@@ -188,15 +190,15 @@ public:
 		rightSlaveMotor = new TalonSRX(4);
 
 		elevatorMasterMotor = new TalonSRX(5);
-		elevatorSlaveMotor = new TalonSRX(6);
+		elevatorSlaveMotor = new TalonSRX(7);
 
-		intakeMasterMotor = new TalonSRX(7);
+		intakeMasterMotor = new TalonSRX(6);
 		intakeSlaveMotor = new TalonSRX(8);
 
 		actuatorMotor = new TalonSRX(9);
 
-		gearBox = new DoubleSolenoid(1, 2);
-		intakeArmActuator = new DoubleSolenoid(3, 4);
+		gearBox = new DoubleSolenoid(2, 1);
+		intakeArmActuator = new DoubleSolenoid(6, 7);
 		//This try/catch should connect the NAVX.
 		//Will spit out an error message if failed.
         try {
@@ -209,7 +211,7 @@ public:
         	//SENSORS, JOYSTICKS, ACCELEROMETERS, ETC.
 		leftJoystick = new Joystick(0);
 		rightJoystick = new Joystick(1);
-		PS4Gamepad = new Joystick(0);
+		XboxGamepad = new Joystick(2);
 		ADXGyro = new ADXRS450_Gyro();
 		autonomousTimer = new Timer();
 
@@ -228,9 +230,8 @@ public:
 		elevatorMasterMotor->Set(ControlMode::PercentOutput, 0);
 		elevatorSlaveMotor->Set(ControlMode::Follower, 5);
 		intakeMasterMotor->Set(ControlMode::PercentOutput, 0);
-		intakeSlaveMotor->Set(ControlMode::Follower, 7);
+		intakeSlaveMotor->Set(ControlMode::Follower, 6);
 		actuatorMotor->Set(ControlMode::PercentOutput, 0);
-
 		//TalonSRX PID parameter setup.
 		//The pidxid of the sensor can be found in the web-configuration page of the Roborio.
 		//Should be a 0, multiple id values not supported (yet).
@@ -254,41 +255,41 @@ public:
 		rightMasterMotor->Config_kD(0, 0.50, 10);
 
 		elevatorMasterMotor->ConfigSelectedFeedbackSensor(FeedbackDevice::CTRE_MagEncoder_Relative, 0, 10);
-		elevatorMasterMotor->SetSensorPhase(true);
+		//Limits the output to 75% to ensure no elevator breakage.
+		elevatorMasterMotor->ConfigPeakOutputForward(0.5, 10);
+		elevatorMasterMotor->ConfigPeakOutputReverse(-0.5, 10);
+		elevatorSlaveMotor->ConfigPeakOutputForward(0.5, 10);
+		elevatorSlaveMotor->ConfigPeakOutputReverse(-0.5, 10);
+		elevatorMasterMotor->SetSensorPhase(false);
 		elevatorMasterMotor->Config_kF(0, 0.0, 10);
-		elevatorMasterMotor->Config_kP(0, 0.0075, 10);
+		elevatorMasterMotor->Config_kP(0, 0.00075, 10);
 		elevatorMasterMotor->Config_kI(0, 0.0, 10);
-		elevatorMasterMotor->Config_kD(0, 0.50, 10);
+		elevatorMasterMotor->Config_kD(0, 0.00050, 10);
+
+		intakeMasterMotor->ConfigPeakOutputForward(0.5, 10);
+		intakeMasterMotor->ConfigPeakOutputReverse(-0.5, 10);
+
+		//TODO If the motors do spin opposing to desired direction, invert!
+		elevatorMasterMotor->SetInverted(false);
+		elevatorMasterMotor->SetInverted(false);
+		elevatorSlaveMotor->SetInverted(false);
+		elevatorSlaveMotor->SetInverted(false);
+
+		intakeSlaveMotor->SetInverted(true);
+		actuatorMotor->SetInverted(true);
 
 		elevatorMasterMotor->ConfigForwardSoftLimitThreshold(10000, 10);
 		elevatorMasterMotor->ConfigReverseSoftLimitThreshold(-10000, 10);
 		//Setting up of soft limits, essentially a min/max movement range for the elevator mechanism.
 		//The units are defined in CTRE's proprietary units, as in 4096 units per rotation.
-		elevatorMasterMotor->ConfigForwardSoftLimitEnable(true, 10);
-		elevatorMasterMotor->ConfigReverseSoftLimitEnable(true, 10);
+		elevatorMasterMotor->ConfigForwardSoftLimitEnable(false, 10);
+		elevatorMasterMotor->ConfigReverseSoftLimitEnable(false, 10);
 
 		leftMasterMotor->SetSelectedSensorPosition(0, 0, 10);
 		rightMasterMotor->SetSelectedSensorPosition(0, 0, 10);
 		//Ensure that the elevator is set to the LOWEST position on the linear slide.
 		//Additionally, ensure that there is no slack in the cables.
 		elevatorMasterMotor->SetSelectedSensorPosition(0, 0, 10);
-		//Sets up the NetworkTables for communication.
-		//Grabs the default NetworkTable the roboRio creates.
-		//TODO Renable NetworkTable code after Clackamas.
-//		auto table = NetworkTableInstance::GetDefault();
-//		//Creates a NetworkTable called Jetson based on the default NetworkTable.
-//		auto networkTableData = table.GetTable("Jetson");
-//		//Entry with the calculated error from the TX1.
-//		cameraErrorAngle = networkTableData->GetEntry("angle");
-//		//Entry with the state of the vision tracking, 1 = tracking, 0 = not.
-//		trackingState = networkTableData->GetEntry("V_Working");
-//		//Entry with the ultrasonic distance.
-//		ultrasonicDistance = networkTableData->GetEntry("Distance");
-//		//Entry with the switch/scale position string.
-//		//Retrieved from the DriverStation.
-//		scaleString = networkTableData->GetEntry("scaleString");
-//
-//		dataSink = networkTableData->GetEntry("processed");
 	}
 	//Input a turn angle, calculate the position needed, and rotate as such.
 	//Output a success statement.
@@ -303,28 +304,28 @@ public:
 		combinedGyroValue = ((navxGyro + rioGyro)/2);
 
 		bool doneTurning;
-		double motorVelocity = 2048;
+		double motorVelocity = 0.5;
 		double tolerance = 9.0;
 
 		if((!targetReached && (combinedGyroValue < autonomousAngleSet))) {
-			leftMasterMotor->Set(ControlMode::Velocity, (-motorVelocity));
-			rightMasterMotor->Set(ControlMode::Velocity, (-motorVelocity));
+			leftMasterMotor->Set(ControlMode::PercentOutput, (-motorVelocity));
+			rightMasterMotor->Set(ControlMode::PercentOutput, (-motorVelocity));
 			doneTurning = false;
 			if((combinedGyroValue > autonomousAngleSet - tolerance) && (
 					combinedGyroValue < autonomousAngleSet + tolerance)) {
 				targetReached = true;
 			}
-			SmartDashboard::PutString("Turning State?", "Turning Right!");
+			SmartDashboard::PutString("Motion State", "Turning Right!");
 
 		} else if(!targetReached && ((combinedGyroValue > autonomousAngleSet))) {
-			leftMasterMotor->Set(ControlMode::Velocity, (motorVelocity));
-			rightMasterMotor->Set(ControlMode::Velocity, (motorVelocity));
+			leftMasterMotor->Set(ControlMode::PercentOutput, (motorVelocity));
+			rightMasterMotor->Set(ControlMode::PercentOutput, (motorVelocity));
 			doneTurning = false;
 			if((combinedGyroValue > autonomousAngleSet - tolerance) &&
 					(combinedGyroValue < autonomousAngleSet + tolerance)) {
 				targetReached = true;
 			}
-			SmartDashboard::PutString("Turning State?", "Turning Left!");
+			SmartDashboard::PutString("Motion State", "Turning Left!");
 
 		}
 		if(targetReached){
@@ -332,13 +333,23 @@ public:
 			rightMasterMotor->Set(ControlMode::PercentOutput, (0));
 			doneTurning = true;
 			targetReached = true;
-			SmartDashboard::PutString("Turning State?", "Done!");
+			SmartDashboard::PutString("Motion State", "Done Turning!");
 		}
-return doneTurning;
+		return doneTurning;
 	}
 	bool DRIVE_TO_DISTANCE(int autonomousDistanceSet) {
-
+		//Proprietary unit for each Encoder rotation, 4096 units per rotation.
+		const float encoderRotTick = 4096.0;
+		const float PI = 3.1415;
+		//Calculation of circumference, used for autonomous driving control.
+		const float circumference = (PI*6.0);
+		//Calculation of converting returned ultrasonic sensor voltage to meaningful value.
+//		const float masterUltrasonicConversion = (5000.0 * 39.4)/4.88;
+		//Ratio of gears from Encoder to actual driveshaft.
+		const float gearRatio = (2.0/15.0);
 		bool doneDriving;
+		double motorVelocity = 0.5;
+
 		rightMasterMotor->SetInverted(true);
 		rightSlaveMotor->SetInverted(true);
 		rightMasterMotor->SetSensorPhase(true);
@@ -347,17 +358,20 @@ return doneTurning;
 			//Does the calculations necessary to set a position for the motors.
 			//autonomousDistanceSet/circumference = number of turns necessary.
 			//Number of turns * encRotTick (4096) = position needed to drive to in native units.
-			leftMasterMotor->Set(ControlMode::Position, -(autonomousDistanceSet/(circumference)) * encoderRotTick);
-			rightMasterMotor->Set(ControlMode::Position, -(autonomousDistanceSet/(circumference)) * encoderRotTick);
+//			leftMasterMotor->Set(ControlMode::Position, -(autonomousDistanceSet/(circumference)) * encoderRotTick);
+//			rightMasterMotor->Set(ControlMode::Position, -(autonomousDistanceSet/(circumference)) * encoderRotTick);
 
-			SmartDashboard::PutString("Driving State?", "Currently Moving Forward!");
+			leftMasterMotor->Set(ControlMode::PercentOutput, motorVelocity);
+			rightMasterMotor->Set(ControlMode::PercentOutput, -motorVelocity);
+
+			SmartDashboard::PutString("Motion State", "Currently Moving Forward!");
 			//When doneDriving is false, should continue driving along.
 			doneDriving = false;
 		} else {
 			leftMasterMotor->Set(ControlMode::PercentOutput, 0.0);
 			rightMasterMotor->Set(ControlMode::PercentOutput, 0.0);
 
-			SmartDashboard::PutString("Driving State?", "Done!");
+			SmartDashboard::PutString("Motion State", "Done Forward!");
 			//When doneDrving is true, should schedule the next segment.
 			doneDriving = true;
 		}
@@ -375,10 +389,8 @@ return doneTurning;
         bool right = SmartDashboard::GetBoolean("Right", !!0);
         bool runScale = SmartDashboard::GetBoolean("BaseLine-Scale", !!0);
         bool runSwitch = SmartDashboard::GetBoolean("BaseLine-Switch", !!0);
-        bool runAll = SmartDashboard::GetBoolean("BaseLne-Scale&Switch", !!0);
-        bool runBaseline = SmartDashboard::GetBoolean("BaseLine-Only", !!0);
-        bool MultiCube = SmartDashboard::GetBoolean("MultiCube-Auto", !!0);
-
+//        bool runAll = SmartDashboard::GetBoolean("BaseLne-Scale&Switch", !!0);
+//        bool runBaseline = SmartDashboard::GetBoolean("BaseLine-Only", !!0);
 
         if(left){
          fieldPos = 0;
@@ -429,6 +441,8 @@ return doneTurning;
             switchposition_fr = 2;
 		}
         if(runSwitch) {
+			// Should be accurate to some degree Without any testing
+			//TODO TEST!
             switch (switchposition_cl) {
                 case LEFT_FIELD:
                     switch (fieldPos) {
@@ -438,7 +452,7 @@ return doneTurning;
                             Segments[1].DIST = 4.0;
                             Segments[1].ANGLE = 0.0;
                             Segments[2].DIST = 0.0;
-                            Segments[2].ANGLE = Segments[1].ANGLE;
+                            Segments[2].ANGLE = 0.0;
                             break;
                         case BOT_ON_CENTER:
                             Segments[0].DIST = 95.0;
@@ -606,33 +620,17 @@ return doneTurning;
                     break;
             }
         }
-
-            if(MultiCube){
-                bool switch_2_cube = SmartDashboard::GetBoolean("2cubeSwitch",!!0);
-                bool switch_and_scale_2_cube = SmartDashboard::GetBoolean("2cubeSwitch+scale",!!0);
-                bool scale_2_cube = SmartDashboard::GetBoolean("2cubeScale",!!0);
-                if(switch_2_cube){
-
-                }
-                if(switch_and_scale_2_cube){
-
-                }
-                if(scale_2_cube){
-
-                }
-            }
-
 	}
 	void TURN_PARAM_SET() {
 		//This function, and DRIVE_PARAM_SET, should set up the PID values once in the autonomous periodic code.
 		leftMasterMotor->Config_kF(0, 0.0, 10);
 		leftMasterMotor->Config_kP(0, 0.5, 10);
-		leftMasterMotor->Config_kI(0, 0.0001, 10);
+		leftMasterMotor->Config_kI(0, 0.001, 10);
 		leftMasterMotor->Config_kD(0, 0.050, 10);
 
 		rightMasterMotor->Config_kF(0, 0.0, 10);
 		rightMasterMotor->Config_kP(0, 0.5, 10);
-		rightMasterMotor->Config_kI(0, 0.0001, 10);
+		rightMasterMotor->Config_kI(0, 0.001, 10);
 		rightMasterMotor->Config_kD(0, 0.050, 10);
 	}
 	void DRIVE_PARAM_SET() {
@@ -648,36 +646,41 @@ return doneTurning;
 	}
 	void SHIFT_HIGH () {
 		gearBox->Set(DoubleSolenoid::kForward);
-		frc::Wait(0.5);
+		Wait(0.5);
 		gearBox->Set(DoubleSolenoid::kOff);
 		isHighGear =! isHighGear;
+		//Where green is, and red is.
+		isInHighGear = true;
+		SmartDashboard::PutBoolean("Gear State", isInHighGear);
 	}
 	void SHIFT_LOW () {
 		gearBox->Set(DoubleSolenoid::kReverse);
-		frc::Wait(0.5);
+		Wait(0.5);
 		gearBox->Set(DoubleSolenoid::kOff);
 		isHighGear =! isHighGear;
+		isInHighGear = false;
+		SmartDashboard::PutBoolean("Gear State", isInHighGear);
 	}
 	void INTAKE_ARM_IN() {
 		intakeArmActuator->Set(DoubleSolenoid::kForward);
-		frc::Wait(0.5);
-		gearBox->Set(DoubleSolenoid::kOff);
+		Wait(0.5);
+		intakeArmActuator->Set(DoubleSolenoid::kOff);
 		isActuator =! isActuator;
-
+		//Where green is, and red is.
+		isArmIn = true;
+		SmartDashboard::PutBoolean("Actuator State", isArmIn);
 	}
 	void INTAKE_ARM_OUT() {
 		intakeArmActuator->Set(DoubleSolenoid::kReverse);
-		frc::Wait(0.5);
-		gearBox->Set(DoubleSolenoid::kOff);
+		Wait(0.5);
+		intakeArmActuator->Set(DoubleSolenoid::kOff);
 		isActuator =! isActuator;
+		isArmIn = false;
+		SmartDashboard::PutBoolean("Actuator State", isArmIn);
 	}
 	void AutonomousInit() override {
-		//TODO Renable later.
-//		scaleString.SetString(DriverStation::GetInstance().GetGameSpecificMessage());
-		// SmartDashboard::PutString("Game Data", DriverStation::GetInstance().GetGameSpecificMessage());
-		//fieldPos = SmartDashboard::GetNumber("Robot Position", 3);
 		SEGMENT_DATA_SET(DriverStation::GetInstance().GetGameSpecificMessage());
-		SHIFT_LOW();
+		SHIFT_HIGH();
 
 		leftMasterMotor->Config_kF(0, 0.0, 10);
 		leftMasterMotor->Config_kP(0, 0.0085, 10);
@@ -701,7 +704,6 @@ return doneTurning;
 		autonomousTimer->Start();
 		NAVXBoard->Reset();
 		ADXGyro->Reset();
-		//TODO Change the default value back to -1.0 when finished with testing.
 
 		driveState = SEG_1;
 		doneDriving = false;
@@ -709,85 +711,144 @@ return doneTurning;
 	}
 
 	void AutonomousPeriodic() {
-		//Selection based on switch position, or robotic position.
-		//isTracking will need to be retrieved from networktables.
-		//Time and Ultrasonic Distance will need to be sent to Jeff.
-		//TODO Renable later.
-//		float angle = cameraErrorAngle.GetDouble(Segments[driveState].ANGLE);
-//		int isTracking = trackingState.GetDouble(0.0);
-		if(autonomousTimer->Get() <= 1.0) {
-			actuatorMotor->Set(ControlMode::PercentOutput, 0.5);
-		} else if (autonomousTimer->Get() <= 2.0) {
-			elevatorMasterMotor->Set(ControlMode::Position, 2000);
-		} else if (autonomousTimer->Get() <= 15.0) {
-			if(driveState <= 5) {
-				if(!doneDriving) {
-					//The below state checker should only set the turn PID parameters once only.
-					if(drivingParamTest) {
-						DRIVE_PARAM_SET();
-						frc::Wait(0.5);
-						leftMasterMotor->SetSelectedSensorPosition(0, 0, 10);
-						rightMasterMotor->SetSelectedSensorPosition(0, 0, 10);
-						drivingParamTest = false;
-					}
-						doneDriving = DRIVE_TO_DISTANCE(Segments[driveState].DIST);
-						SmartDashboard::PutNumber("Current Distance", Segments[driveState].DIST);
-						SmartDashboard::PutNumber("Current Angle", Segments[driveState].ANGLE);
-						SmartDashboard::PutString("Control State", "Moving Forward!");
-						SmartDashboard::PutString("Turning State?", "Not Turning!");
-						SmartDashboard::PutBoolean("Driving State", doneDriving);
-						SmartDashboard::PutBoolean("Turning State", driveState);
-				} else if (doneDriving && !doneTurning) {
-					if(turningParamTest) {
-						TURN_PARAM_SET();
-						frc::Wait(0.5);
-						turningParamTest = false;
-					} else {
-						turningParamTest = false;
-					}
-					doneTurning = TURN_TO_ANGLE(Segments[driveState].ANGLE);
-					SmartDashboard::PutNumber("Current Distance", Segments[driveState].DIST);
-					SmartDashboard::PutNumber("Current Angle", Segments[driveState].ANGLE);
-					SmartDashboard::PutString("Control State", "Not Moving Forward!");
-					SmartDashboard::PutString("Control State", "Turning!");
-					SmartDashboard::PutBoolean("Driving State", doneDriving);
-					SmartDashboard::PutBoolean("Turning State", driveState);
-				} else if(doneDriving && doneTurning) {
-					driveState ++;
-					leftMasterMotor->SetSelectedSensorPosition(0, 0, 10);
-					rightMasterMotor->SetSelectedSensorPosition(0, 0, 10);
-					SmartDashboard::PutNumber("Completed Segment:", driveState);
-					SmartDashboard::PutBoolean("Driving State", doneDriving);
-					SmartDashboard::PutBoolean("Turning State", driveState);
-					turningParamTest = true;
-					drivingParamTest = true;
-					doneDriving = false;
-					doneTurning = false;
-				}
-					//TODO The below Vision Code will be implemented later.
-	//			if(isTracking == 1) {
-	//				if(angle < 0) {
-	//					angle -= 10;
-	//				} else {
-	//					angle += 10;
-	//				}
-	//				doneTurning = TURN_TO_ANGLE(angle);
-	//				SmartDashboard::PutNumber("Angle Error", angle);
-	//				SmartDashboard::PutBoolean("Driving State", doneDriving);
-	//				SmartDashboard::PutBoolean("Turning State", driveState);
-	//				if(doneTurning) {
-	//				} else if(doneTurning && doneDriving) {
-	//					elevatorMasterMotor->Set(ControlMode::Position, 2048.0);
-	//				}
-	//			}
-			} else if(driveState > 3) {
-					leftMasterMotor->Set(ControlMode::PercentOutput, 0);
-					rightMasterMotor->Set(ControlMode::PercentOutput, 0);
-					intakeMasterMotor->Set(ControlMode::PercentOutput, -1.0);
+
+		//Baseline autonomous, aim the robot and let it go.
+		if(autonomousTimer->Get() < 4.5) {
+			leftMasterMotor->Set(ControlMode::PercentOutput, -0.5);
+			rightMasterMotor->Set(ControlMode::PercentOutput, -0.5);
+		} else {
+			leftMasterMotor->Set(ControlMode::PercentOutput, 0);
+			rightMasterMotor->Set(ControlMode::PercentOutput, 0);
+		}
+		//Basic center position cube autonomous.
+		if(autonomousTimer->Get() < 1.0) {
+			actuatorMotor->Set(ControlMode::PercentOutput, -0.5);
+		} else if(autonomousTimer->Get() < 2.0) {
+			actuatorMotor->Set(ControlMode::PercentOutput, 0.0);
+			elevatorMasterMotor->Set(ControlMode::Position, 18000);
+		} else if(autonomousTimer->Get() < 15.0) {
+			if(!doneDriving) {
+				//Perhaps use time and motor drive percent instead of drive function?
+				doneDriving = DRIVE_TO_DISTANCE(95);
+			} else {
+				leftMasterMotor->Set(ControlMode::PercentOutput, 0);
+				rightMasterMotor->Set(ControlMode::PercentOutput, 0);
+				intakeMasterMotor->Set(ControlMode::PercentOutput, 0.5);
 			}
+		}
+		//Complex autonomous program, modular, procedural for baseline/switch/scale.
+		//Requires the segment code to be functional.
+		//Repurposes the bag box and elevator code in the opening seconds.
+		if(autonomousTimer->Get() < 1.0) {
+			actuatorMotor->Set(ControlMode::PercentOutput, -0.5);
+		} else if(autonomousTimer->Get() < 2.0) {
+			actuatorMotor->Set(ControlMode::PercentOutput, 0.0);
+			elevatorMasterMotor->Set(ControlMode::Position, 18000);
+		} else if(autonomousTimer->Get() < 14.0) {
+
+		} else if(autonomousTimer->Get() < 15.0) {
+
+		} else {
+
 		}
 	}
 
+//			if(!doneDriving) {
+//				if(drivingParamTest) {
+//					DRIVE_PARAM_SET();
+//					Wait(0.5);
+//					leftMasterMotor->SetSelectedSensorPosition(0, 0, 10);
+//					rightMasterMotor->SetSelectedSensorPosition(0, 0, 10);
+//					drivingParamTest = false;
+//				} else if(!drivingParamTest) {
+//					doneDriving = DRIVE_TO_DISTANCE(130);
+//				}
+//			} else {
+//				leftMasterMotor->Set(ControlMode::PercentOutput, 0);
+//				rightMasterMotor->Set(ControlMode::PercentOutput, 0);
+//			}
+//			} else if(doneDriving && !doneTurning){
+//				if(turningParamTest) {
+//					TURN_PARAM_SET();
+//					Wait(0.5);
+//					turningParamTest = false;
+//				} else if (!turningParamTest) {
+//					doneTurning = TURN_TO_ANGLE(Segments[driveState].ANGLE);
+//				}
+//			}
+//				doneTurning = TURN_TO_ANGLE(90);
+//			} else if (doneDriving && doneTurning) {
+//				elevatorMasterMotor->Set(ControlMode::Position, 18000);
+//			}
+//			if(autonomousTimer->Get() > 14.0) {
+//				intakeMasterMotor->Set(ControlMode::PercentOutput, -0.5);
+//			}
+//
+//		//Selection based on switch position, or robotic position.
+//		//isTracking will need to be retrieved from networktables.
+//		//Time and Ultrasonic Distance will need to be sent to Jeff.
+//		if(autonomousTimer->Get() <= 0.75) {
+//			actuatorMotor->Set(ControlMode::PercentOutput, 0.25);
+//		} else if (autonomousTimer->Get() <= 1.5) {
+//			elevatorMasterMotor->Set(ControlMode::Position, 2000);
+//		} else if (autonomousTimer->Get() <= 15.0) {
+//			elevatorMasterMotor->Set(ControlMode::PercentOutput, 0);
+//			elevatorMasterMotor->Set(ControlMode::PercentOutput, 0);
+//			if(driveState <= 5) {
+//				if(!doneDriving) {
+//					//The below state checker should only set the turn PID parameters once only.
+//					if(drivingParamTest) {
+//						DRIVE_PARAM_SET();
+//						Wait(0.5);
+//						leftMasterMotor->SetSelectedSensorPosition(0, 0, 10);
+//						rightMasterMotor->SetSelectedSensorPosition(0, 0, 10);
+//						drivingParamTest = false;
+//					} else if(!drivingParamTest) {
+//						doneDriving = DRIVE_TO_DISTANCE(Segments[driveState].DIST);
+//						SmartDashboard::PutNumber("Current Distance", Segments[driveState].DIST);
+//						SmartDashboard::PutNumber("Current Angle", Segments[driveState].ANGLE);
+//						SmartDashboard::PutString("Control State", "Moving Forward!");
+//						SmartDashboard::PutString("Turning State?", "Not Turning!");
+//						SmartDashboard::PutBoolean("Driving State", doneDriving);
+//						SmartDashboard::PutBoolean("Turning State", driveState);
+//					}
+//				} else if (doneDriving && !doneTurning) {
+//					if(turningParamTest) {
+//						TURN_PARAM_SET();
+//						Wait(0.5);
+//						turningParamTest = false;
+//					} else if (!turningParamTest) {
+//						doneTurning = TURN_TO_ANGLE(Segments[driveState].ANGLE);
+//						SmartDashboard::PutNumber("Current Distance", Segments[driveState].DIST);
+//						SmartDashboard::PutNumber("Current Angle", Segments[driveState].ANGLE);
+//						SmartDashboard::PutString("Control State", "Not Moving Forward!");
+//						SmartDashboard::PutString("Control State", "Turning!");
+//						SmartDashboard::PutBoolean("Driving State", doneDriving);
+//						SmartDashboard::PutBoolean("Turning State", driveState);
+//					}
+//				} else if(doneDriving && doneTurning) {
+//					driveState ++;
+//					leftMasterMotor->SetSelectedSensorPosition(0, 0, 10);
+//					rightMasterMotor->SetSelectedSensorPosition(0, 0, 10);
+//					SmartDashboard::PutNumber("Completed Segment:", driveState);
+//					SmartDashboard::PutBoolean("Driving State", doneDriving);
+//					SmartDashboard::PutBoolean("Turning State", driveState);
+//					turningParamTest = true;
+//					drivingParamTest = true;
+//					doneDriving = false;
+//					doneTurning = false;
+//				}
+//			} else if(driveState > 5) {
+//					leftMasterMotor->Set(ControlMode::PercentOutput, 0);
+//					rightMasterMotor->Set(ControlMode::PercentOutput, 0);
+//					if(autonomousTimer->Get() < 14.0) {
+//						elevatorMasterMotor->Set(ControlMode::Position, 2000);
+//					} else if(autonomousTimer->Get() < 15.0) {
+//						intakeMasterMotor->Set(ControlMode::PercentOutput, -0.5);
+//
+//					}
+//			}
+//		}
 
 	void TeleopInit() {
 		autonomousTimer->Stop();
@@ -796,6 +857,7 @@ return doneTurning;
 
 		leftMasterMotor->Set(ControlMode::PercentOutput, 0);
 		rightMasterMotor->Set(ControlMode::PercentOutput, 0);
+		elevatorMasterMotor->Set(ControlMode::PercentOutput, 0);
 		//This function should always put us into low gear, regardless of previous gear setting.
 		if(!isHighGear){
 			SHIFT_LOW();
@@ -811,48 +873,102 @@ return doneTurning;
 
 	}
 	void TeleopPeriodic() {
-		bool GamepadState;
-//		double intakeDirection;
-		//Thresholds are set to 5% of the Joystick's range.
-		if(abs(rightJoystick->GetY()) < 0.05) {
-			robotThrottle = 0;
-		} else {
-			robotThrottle = rightJoystick->GetY();
-		}
-		if(abs(rightJoystick->GetX()) < 0.05) {
-			robotSteer = 0;
-		} else {
-			robotSteer = rightJoystick->GetX();
-		}
-		leftMasterMotor->Set(ControlMode::PercentOutput, robotThrottle - robotSteer);
-		rightMasterMotor->Set(ControlMode::PercentOutput, -robotThrottle - robotSteer);
 
-		intakeThrottle = PS4Gamepad->GetY();
+	if(rightJoystick->GetRawButton(8)) {
+		if(isControl) {
 
-		if(leftJoystick->GetRawButton(3)) {
-			intakeThrottle = -1.0;
+		} else if (!isControl) {
+
 		}
-		if(leftJoystick->GetRawButton(4)) {
-			intakeThrottle = 1.0;
-		}
-
-		intakeMasterMotor->Set(ControlMode::PercentOutput, intakeThrottle);
-
-		//soloTest acts as a single limiter to keep the if/else loop from running indefinitely.
-		//If the button is pressed, and since soloTest is true, state should run the if/else once
-		if(rightJoystick->GetRawButton(rightJoystickMap::GEAR_CHANGE) && shiftingSoloTest) {
-			if(isHighGear) {
-				SHIFT_HIGH();
-			} else if(!isHighGear) {
-				SHIFT_LOW();
+		controlSoloTest = false;
+	}
+	if(!rightJoystick->GetRawButton(8)) {
+		controlSoloTest = true;
+	}
+	//Checks if the control scheme is set to true or false.
+	//True =, false =.
+		if(teleopMasterSwitch) {
+			if(rightJoystick->GetRawButton(rightJoystickMap::GEAR_CHANGE) && shiftingSoloTest) {
+				if(isHighGear) {
+					SHIFT_HIGH();
+				} else if(!isHighGear) {
+					SHIFT_LOW();
+				}
+				shiftingSoloTest = false;
 			}
-			shiftingSoloTest = false;
-		}
-		if(!rightJoystick->GetRawButton(rightJoystickMap::GEAR_CHANGE)) {
-			shiftingSoloTest = true;
+			if(!rightJoystick->GetRawButton(rightJoystickMap::GEAR_CHANGE)) {
+				shiftingSoloTest = true;
+			}
+			//Thresholds are set to 5% of the Joystick's range.
+			if(abs(rightJoystick->GetY()) < 0.05) {
+				robotThrottle = 0;
+			} else {
+				robotThrottle = rightJoystick->GetY();
+			}
+			if(abs(rightJoystick->GetX()) < 0.05) {
+				robotSteer = 0;
+			} else {
+				robotSteer = rightJoystick->GetX();
+			}
+			leftMasterMotor->Set(ControlMode::PercentOutput, robotThrottle - robotSteer);
+			rightMasterMotor->Set(ControlMode::PercentOutput, -robotThrottle - robotSteer);
+
+			//soloTest acts as a single limiter to keep the if/else loop from running indefinitely.
+			//If the button is pressed, and since soloTest is true, state should run the if/else once
+			if(rightJoystick->GetRawButton(rightJoystickMap::GEAR_CHANGE) && shiftingSoloTest) {
+				if(isHighGear) {
+					SHIFT_HIGH();
+				} else if(!isHighGear) {
+					SHIFT_LOW();
+				}
+				shiftingSoloTest = false;
+			}
+			if(!rightJoystick->GetRawButton(rightJoystickMap::GEAR_CHANGE)) {
+				shiftingSoloTest = true;
+			}
+		} else if(!teleopMasterSwitch) {
+
+			if(rightJoystick->GetRawButton(rightJoystickMap::GEAR_CHANGE) && shiftingSoloTest) {
+				if(isHighGear) {
+					SHIFT_HIGH();
+				} else if(!isHighGear) {
+					SHIFT_LOW();
+				}
+				shiftingSoloTest = false;
+			}
+			if(!rightJoystick->GetRawButton(rightJoystickMap::GEAR_CHANGE)) {
+				shiftingSoloTest = true;
+			}
+			//Thresholds are set to 5% of the Joystick's range.
+			if(abs(rightJoystick->GetY()) < 0.05) {
+				robotThrottle = 0;
+			} else {
+				robotThrottle = rightJoystick->GetY();
+			}
+			if(abs(leftJoystick->GetX()) < 0.05) {
+				robotSteer = 0;
+			} else {
+				robotSteer = leftJoystick->GetX();
+			}
+			leftMasterMotor->Set(ControlMode::PercentOutput, robotThrottle - robotSteer);
+			rightMasterMotor->Set(ControlMode::PercentOutput, -robotThrottle - robotSteer);
+
+			//soloTest acts as a single limiter to keep the if/else loop from running indefinitely.
+			//If the button is pressed, and since soloTest is true, state should run the if/else once
+			if(rightJoystick->GetRawButton(rightJoystickMap::GEAR_CHANGE) && shiftingSoloTest) {
+				if(isHighGear) {
+					SHIFT_HIGH();
+				} else if(!isHighGear) {
+					SHIFT_LOW();
+				}
+				shiftingSoloTest = false;
+			}
+			if(!rightJoystick->GetRawButton(rightJoystickMap::GEAR_CHANGE)) {
+				shiftingSoloTest = true;
+			}
 		}
 		//Toggle code toggling the actuator
-		if(leftJoystick->GetRawButton(rightJoystickMap::ACTUATOR_TOGGLE) && actuatorSoloTest) {
+		if(XboxGamepad->GetRawButton(XboxGamepadMap::GAMEPAD_ACTUATOR_TOGGLE) && actuatorSoloTest) {
 			if(isActuator) {
 				INTAKE_ARM_OUT();
 			} else if(!isActuator) {
@@ -860,59 +976,50 @@ return doneTurning;
 			}
 			actuatorSoloTest = false;
 		}
-		if(!leftJoystick->GetRawButton(rightJoystickMap::ACTUATOR_TOGGLE)) {
+		if(!XboxGamepad->GetRawButton(XboxGamepadMap::GAMEPAD_ACTUATOR_TOGGLE)) {
 			actuatorSoloTest = true;
 		}
-		//The gamepad does not need toggle code, only button based.
-		if(PS4Gamepad->GetRawButton(gamepadMap::ARM_PISTON_IN)) {
-			INTAKE_ARM_IN();
-		}
-		if(PS4Gamepad->GetRawButton(gamepadMap::ARM_PISTON_OUT)) {
-			INTAKE_ARM_OUT();
-		}
-		//Actuator code for rotating the intake mechanism.
-		if(leftJoystick->GetPOV() == leftJoystickMap::JOYSTICK_ACTUATOR_DOWN) {
+
+		if(XboxGamepad->GetPOV() == XboxGamepadMap::JOYSTICK_ACTUATOR_DOWN) {
 			actuatorMotor->Set(ControlMode::PercentOutput, 0.5);
-		} else if(leftJoystick->GetPOV() == leftJoystickMap::JOYSTICK_ACTUATOR_UP) {
-			actuatorMotor->Set(ControlMode::PercentOutput, -0.5);
-		} else {
-			actuatorMotor->Set(ControlMode::PercentOutput, 0.0);
-		}
-		if(PS4Gamepad->GetPOV() == gamepadMap::GAMEPAD_ACTUATOR_DOWN) {
-			actuatorMotor->Set(ControlMode::PercentOutput, 0.5);
-		} else if(PS4Gamepad->GetPOV() == gamepadMap::GAMEPAD_ACTUATOR_UP) {
+		} else if(XboxGamepad->GetPOV() == XboxGamepadMap::JOYSTICK_ACTUATOR_UP) {
 			actuatorMotor->Set(ControlMode::PercentOutput, -0.5);
 		} else {
 			actuatorMotor->Set(ControlMode::PercentOutput, 0.0);
 		}
 
-		//Master/Secondary if statements for the elevator lift.
-		//Should be a complete override if the joystick moves.
-		//Thresholds set to reduce "booping" errors.
-		if(abs(PS4Gamepad->GetRawAxis(5)) > 0.05) {
-			GamepadState = true;
-		}
-		if(abs(leftJoystick->GetY()) > 0.1) {
-			GamepadState = false;
-		}
-		if(!GamepadState){
-			elevatorGamepadThrottle = leftJoystick->GetY();
-			elevatorMasterMotor->Set(ControlMode::PercentOutput, elevatorGamepadThrottle);
-		} else if(GamepadState) {
-			elevatorGamepadThrottle = PS4Gamepad->GetRawAxis(5);
-			elevatorMasterMotor->Set(ControlMode::PercentOutput, elevatorJoystickThrottle);
-		}
+		elevatorThrottle = XboxGamepad->GetRawAxis(XboxGamepadMap::ELEVATOR_AXIS);
+		elevatorMasterMotor->Set(ControlMode::PercentOutput, -elevatorThrottle);
 
+		intakeThrottle = XboxGamepad->GetRawAxis(XboxGamepadMap::INTAKE_AXIS);
+		intakeMasterMotor->Set(ControlMode::PercentOutput, intakeThrottle);
+
+		if((elevatorMasterMotor->GetSelectedSensorPosition(0) > 0) && (elevatorMasterMotor->GetSelectedSensorPosition(0) < 1000)) {
+			XboxGamepad->SetRumble(GenericHID::kLeftRumble, 0.25);
+			XboxGamepad->SetRumble(GenericHID::kLeftRumble, 0.25);
+		}
+		if((elevatorMasterMotor->GetSelectedSensorPosition(0) > 50000) && (elevatorMasterMotor->GetSelectedSensorPosition(0) < 50000)) {
+			XboxGamepad->SetRumble(GenericHID::kLeftRumble, 0.25);
+			XboxGamepad->SetRumble(GenericHID::kLeftRumble, 0.25);
+		}
+/*
 		navxGyro = NAVXBoard->GetAngle();
 		rioGyro = ADXGyro->GetAngle();
 		combinedGyroValue = ((navxGyro + rioGyro)/2);
+*/
+		SmartDashboard::PutNumber("Intake Throttle", intakeThrottle);
+		SmartDashboard::PutNumber("Elevator Throttle", elevatorThrottle);
 
-		SmartDashboard::PutNumber("Composite Gyroscope Value", combinedGyroValue);
-		SmartDashboard::PutNumber("Gamepad Throttle?", PS4Gamepad->GetRawAxis(5));
-		//TODO Renable later.
-//		SmartDashboard::PutNumber("Vision Working State", trackingState.GetDouble(0.0));
-//		SmartDashboard::PutNumber("Camera Error", cameraErrorAngle.GetDouble(180.0));
-//		SmartDashboard::PutNumber("Switch Position", dataSink.GetDouble(-1));
+		SmartDashboard::PutNumber("Gamepad Left Y", XboxGamepad->GetRawAxis(1));
+		SmartDashboard::PutNumber("Gamepad Right Y", XboxGamepad->GetRawAxis(5));
+
+		SmartDashboard::PutNumber("Elevator Master Motor Output", elevatorMasterMotor->GetMotorOutputPercent());
+		SmartDashboard::PutNumber("Elevator Slave Motor Output", elevatorSlaveMotor->GetMotorOutputPercent());
+		SmartDashboard::PutNumber("Intake Master Motor Output", intakeMasterMotor->GetMotorOutputPercent());
+		SmartDashboard::PutNumber("Intake Slave Motor Output", intakeSlaveMotor->GetMotorOutputPercent());
+		SmartDashboard::PutNumber("Bag Box Output", actuatorMotor->GetMotorOutputPercent());
+
+		SmartDashboard::PutNumber("Elevator Position", elevatorMasterMotor->GetSelectedSensorPosition(0));
 
 		frc::Wait(0.005);
 	}
