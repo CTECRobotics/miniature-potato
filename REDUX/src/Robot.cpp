@@ -377,250 +377,7 @@ public:
 		}
 		return doneDriving;
 	}
-	void SEGMENT_DATA_SET (string inputData) {
 
-		//switchPosition indicates where the switch is located, 0 = left, 1 = right.
-		bool LLL = false;
-		bool RRR = false;
-		bool LRL = false;
-		bool RLR = false;
-        bool left = SmartDashboard::GetBoolean("Left", !!0);
-        bool center = SmartDashboard::GetBoolean("Center", !!0);
-        bool right = SmartDashboard::GetBoolean("Right", !!0);
-        bool runScale = SmartDashboard::GetBoolean("BaseLine-Scale", !!0);
-        bool runSwitch = SmartDashboard::GetBoolean("BaseLine-Switch", !!0);
-//        bool runAll = SmartDashboard::GetBoolean("BaseLne-Scale&Switch", !!0);
-//        bool runBaseline = SmartDashboard::GetBoolean("BaseLine-Only", !!0);
-
-        if(left){
-         fieldPos = 0;
-        } else if(center){
-            fieldPos = 1;
-        } else if(right){
-            fieldPos = 2;
-        } else {
-            fieldPos = -1;
-        }
-		string position;
-		position = inputData;
-		//switchPosition indicates where the switch is located, 0 = left, 1 = right.
-		int switchposition_cl;
-        int switchposition_fr;
-        int scaleposition;
-		//String parsing code.
-		if(position == "LLL") {
-			LLL = true;
-		} else if(position == "RRR") {
-			RRR = true;
-		} else if(position == "LRL") {
-			LRL = true;
-		} else if(position == "RLR") {
-			RLR = true;
-		}
-
-		//Assigns 0 to the left side, 1 to the right side.
-		if (LLL) {
-			switchposition_cl = 0;
-            scaleposition = 0;
-            switchposition_fr = 0;
-		} else if (RRR) {
-			switchposition_cl = 1;
-            scaleposition = 1;
-            switchposition_fr = 1;
-		} else if (LRL) {
-			switchposition_cl = 0;
-            scaleposition = 1;
-            switchposition_fr = 0;
-		} else if (RLR) {
-			switchposition_cl = 1;
-            scaleposition = 0;
-            switchposition_fr = 1;
-		} else {
-			switchposition_cl = 2;
-            scaleposition = 2;
-            switchposition_fr = 2;
-		}
-        if(runSwitch) {
-			// Should be accurate to some degree Without any testing
-			//TODO TEST!
-            switch (switchposition_cl) {
-                case LEFT_FIELD:
-                    switch (fieldPos) {
-                        case BOT_ON_LEFT:
-                            Segments[0].DIST = 168.0;
-                            Segments[0].ANGLE = 90.0;
-                            Segments[1].DIST = 4.0;
-                            Segments[1].ANGLE = 0.0;
-                            Segments[2].DIST = 0.0;
-                            Segments[2].ANGLE = 0.0;
-                            break;
-                        case BOT_ON_CENTER:
-                            Segments[0].DIST = 95.0;
-                            Segments[0].ANGLE = -90.0;
-                            Segments[1].DIST = 115.0;
-                            Segments[1].ANGLE = -90.0;
-                            Segments[2].DIST = 97.0;
-                            Segments[2].ANGLE = 90.0;
-							Segments[3].DIST = 30.0;
-							Segments[3].ANGLE = 0.0;
-                            break;
-                        case BOT_ON_RIGHT:
-                            Segments[0].DIST = 95.0;
-                            Segments[0].ANGLE = -90.0;
-                            Segments[1].DIST = 240.0;
-                            Segments[1].ANGLE = 90.0;
-                            Segments[2].DIST = 95.0;
-                            Segments[2].ANGLE = 90.0;
-							Segments[3].DIST = 20.0;
-							Segments[3].ANGLE = 0.0;
-                            break;
-                        case BOT_POS_FAILURE:
-                            Segments[0].DIST = 0.0;
-                            Segments[0].ANGLE = 0.0;
-                            Segments[1].DIST = 0.0;
-                            Segments[1].ANGLE = 0.0;
-                            Segments[2].DIST = 0.0;
-                            Segments[2].ANGLE = 0.0;
-                            break;
-                    }
-                    break;
-                case RIGHT_FIELD:
-                    switch (fieldPos) {
-                        case BOT_ON_LEFT:
-							Segments[0].DIST = 95.0;
-							Segments[0].ANGLE = 90.0;
-							Segments[1].DIST = 240.0;
-							Segments[1].ANGLE = -90.0;
-							Segments[2].DIST = 60.0;
-							Segments[2].ANGLE = -90.0;
-							Segments[3].DIST = 20.0;
-							Segments[3].ANGLE = 0.0;
-                            break;
-                        case BOT_ON_CENTER:
-							Segments[0].DIST = 95.0;
-							Segments[0].ANGLE = 90.0;
-							Segments[1].DIST = 115.0;
-							Segments[1].ANGLE = -90.0;
-							Segments[2].DIST = 95.0;
-							Segments[2].ANGLE = -90.0;
-							Segments[3].DIST = 20.0;
-							Segments[3].ANGLE = 0.0;
-                            break;
-                        case BOT_ON_RIGHT:
-                            Segments[0].DIST = 95.0;
-                            Segments[0].ANGLE = 90.0;
-                            Segments[1].DIST = 36.0;
-                            Segments[1].ANGLE = 0.0;
-                            Segments[2].DIST = 0.0;
-                            Segments[2].ANGLE = Segments[1].ANGLE;
-                            break;
-                        case BOT_POS_FAILURE:
-                            Segments[0].DIST = 0.0;
-                            Segments[0].ANGLE = 0.0;
-                            Segments[1].DIST = 0.0;
-                            Segments[1].ANGLE = 0.0;
-                            Segments[2].DIST = 0.0;
-                            Segments[2].ANGLE = 0.0;
-                            break;
-                    }
-                    break;
-                case FIELD_FAILURE:
-                    Segments[0].DIST = 0.0;
-                    Segments[0].ANGLE = 0.0;
-                    Segments[1].DIST = 0.0;
-                    Segments[1].ANGLE = 0.0;
-                    Segments[2].DIST = 0.0;
-                    Segments[2].ANGLE = 0.0;
-                    break;
-            }
-        }
-        if(runScale){
-            //TODO Make run scale program
-            switch (scaleposition) {
-                case LEFT_FIELD:
-                    switch (fieldPos) {
-                        case BOT_ON_LEFT:
-                            Segments[0].DIST = 317.0; //263 +54
-                            Segments[0].ANGLE = 90.0;
-                            Segments[1].DIST = 0.0;
-                            Segments[1].ANGLE = 0.0;
-                            Segments[2].DIST = 0.0;
-                            Segments[2].ANGLE = Segments[1].ANGLE;
-							// Rise elevator to Top, eject cube.
-                            break;
-                        case BOT_ON_CENTER:
-                            Segments[0].DIST = 95.0;
-                            Segments[0].ANGLE = -90.0;
-                            Segments[1].DIST = 36.0;
-                            Segments[1].ANGLE = 0.0;
-                            Segments[2].DIST = 0.0;
-                            Segments[2].ANGLE = Segments[1].ANGLE;
-                            break;
-                        case BOT_ON_RIGHT:
-                            Segments[0].DIST = 95.0;
-                            Segments[0].ANGLE = -90.0;
-                            Segments[1].DIST = 48.0;
-                            Segments[1].ANGLE = 0.0;
-                            Segments[2].DIST = 0.0;
-                            Segments[2].ANGLE = Segments[1].ANGLE;
-                            break;
-                        case BOT_POS_FAILURE:
-                            Segments[0].DIST = 0.0;
-                            Segments[0].ANGLE = 0.0;
-                            Segments[1].DIST = 0.0;
-                            Segments[1].ANGLE = 0.0;
-                            Segments[2].DIST = 0.0;
-                            Segments[2].ANGLE = 0.0;
-                            break;
-                    }
-                    break;
-                case RIGHT_FIELD:
-                    switch (fieldPos) {
-                        case BOT_ON_LEFT:
-                            Segments[0].DIST = 95.0;
-                            Segments[0].ANGLE = 90.0;
-                            Segments[1].DIST = 12.0;
-                            Segments[1].ANGLE = 0.0;
-                            Segments[2].DIST = 0.0;
-                            Segments[2].ANGLE = Segments[1].ANGLE;
-                            break;
-                        case BOT_ON_CENTER:
-                            Segments[0].DIST = 95.0;
-                            Segments[0].ANGLE = 90.0;
-                            Segments[1].DIST = 24.0;
-                            Segments[1].ANGLE = 0.0;
-                            Segments[2].DIST = 0.0;
-                            Segments[2].ANGLE = Segments[1].ANGLE;
-                            break;
-                        case BOT_ON_RIGHT:
-							Segments[0].DIST = 95.0;
-							Segments[0].ANGLE = -90.0;
-							Segments[1].DIST = 24.0;
-							Segments[1].ANGLE = 0.0;
-							Segments[2].DIST = 0.0;
-							Segments[2].ANGLE = Segments[1].ANGLE;
-                            break;
-                        case BOT_POS_FAILURE:
-                            Segments[0].DIST = 0.0;
-                            Segments[0].ANGLE = 0.0;
-                            Segments[1].DIST = 0.0;
-                            Segments[1].ANGLE = 0.0;
-                            Segments[2].DIST = 0.0;
-                            Segments[2].ANGLE = 0.0;
-                            break;
-                    }
-                    break;
-                case FIELD_FAILURE:
-                    Segments[0].DIST = 0.0;
-                    Segments[0].ANGLE = 0.0;
-                    Segments[1].DIST = 0.0;
-                    Segments[1].ANGLE = 0.0;
-                    Segments[2].DIST = 0.0;
-                    Segments[2].ANGLE = 0.0;
-                    break;
-            }
-        }
-	}
 	void TURN_PARAM_SET() {
 		//This function, and DRIVE_PARAM_SET, should set up the PID values once in the autonomous periodic code.
 		leftMasterMotor->Config_kF(0, 0.0, 10);
@@ -679,7 +436,6 @@ public:
 		SmartDashboard::PutBoolean("Actuator State", isArmIn);
 	}
 	void AutonomousInit() override {
-		SEGMENT_DATA_SET(DriverStation::GetInstance().GetGameSpecificMessage());
 		SHIFT_HIGH();
 
 		leftMasterMotor->Config_kF(0, 0.0, 10);
@@ -711,144 +467,345 @@ public:
 	}
 
 	void AutonomousPeriodic() {
+        bool LLL = false;
+        bool RRR = false;
+        bool LRL = false;
+        bool RLR = false;
+        bool left = SmartDashboard::GetBoolean("Left", !!0);
+        bool center = SmartDashboard::GetBoolean("Center", !!0);
+        bool right = SmartDashboard::GetBoolean("Right", !!0);
+        bool runScale = SmartDashboard::GetBoolean("BaseLine-Scale", !!0);
+        bool runSwitch = SmartDashboard::GetBoolean("BaseLine-Switch", !!0);
+        bool runBaseline = SmartDashboard::GetBoolean("BaseLine-Only", !!0);
 
-		//Baseline autonomous, aim the robot and let it go.
-		if(autonomousTimer->Get() < 4.5) {
-			leftMasterMotor->Set(ControlMode::PercentOutput, -0.5);
-			rightMasterMotor->Set(ControlMode::PercentOutput, -0.5);
-		} else {
-			leftMasterMotor->Set(ControlMode::PercentOutput, 0);
-			rightMasterMotor->Set(ControlMode::PercentOutput, 0);
-		}
+        if(left){
+            fieldPos = 0;
+        } else if(center){
+            fieldPos = 1;
+        } else if(right){
+            fieldPos = 2;
+        } else {
+            fieldPos = -1;
+        }
+        string position;
+        position = DriverStation::GetInstance().GetGameSpecificMessage();
+        //switchPosition indicates where the switch is located, 0 = left, 1 = right.
+        int switchposition_cl;
+        int switchposition_fr;
+        int scaleposition;
+        //String parsing code.
+        if(position == "LLL") {
+            LLL = true;
+        } else if(position == "RRR") {
+            RRR = true;
+        } else if(position == "LRL") {
+            LRL = true;
+        } else if(position == "RLR") {
+            RLR = true;
+        }
+
+        //Assigns 0 to the left side, 1 to the right side. Might Have to check Alliance Colour
+        if (LLL) {
+            switchposition_cl = 0;
+            scaleposition = 0;
+            switchposition_fr = 0;
+        } else if (RRR) {
+            switchposition_cl = 1;
+            scaleposition = 1;
+            switchposition_fr = 1;
+        } else if (LRL) {
+            switchposition_cl = 0;
+            scaleposition = 1;
+            switchposition_fr = 0;
+        } else if (RLR) {
+            switchposition_cl = 1;
+            scaleposition = 0;
+            switchposition_fr = 1;
+        } else {
+            switchposition_cl = 2;
+            scaleposition = 2;
+            switchposition_fr = 2;
+        }
+    void runBaseline(){
+        if(autonomousTimer->Get() < 4.5) {
+            leftMasterMotor->Set(ControlMode::PercentOutput, -0.5);
+            rightMasterMotor->Set(ControlMode::PercentOutput, -0.5);
+        } else {
+            leftMasterMotor->Set(ControlMode::PercentOutput, 0);
+            rightMasterMotor->Set(ControlMode::PercentOutput, 0);
+        }
+    }
+    //Baseline autonomous, aim the robot and let it go.
+        if(runBaseline){
+            runBaseline();
+        }
 		//Basic center position cube autonomous.
-		if(autonomousTimer->Get() < 1.0) {
-			actuatorMotor->Set(ControlMode::PercentOutput, -0.5);
-		} else if(autonomousTimer->Get() < 2.0) {
-			actuatorMotor->Set(ControlMode::PercentOutput, 0.0);
-			elevatorMasterMotor->Set(ControlMode::Position, 18000);
-		} else if(autonomousTimer->Get() < 15.0) {
-			if(!doneDriving) {
-				//Perhaps use time and motor drive percent instead of drive function?
-				doneDriving = DRIVE_TO_DISTANCE(95);
-			} else {
-				leftMasterMotor->Set(ControlMode::PercentOutput, 0);
-				rightMasterMotor->Set(ControlMode::PercentOutput, 0);
-				intakeMasterMotor->Set(ControlMode::PercentOutput, 0.5);
-			}
-		}
-		//Complex autonomous program, modular, procedural for baseline/switch/scale.
-		//Requires the segment code to be functional.
-		//Repurposes the bag box and elevator code in the opening seconds.
-		if(autonomousTimer->Get() < 1.0) {
-			actuatorMotor->Set(ControlMode::PercentOutput, -0.5);
-		} else if(autonomousTimer->Get() < 2.0) {
-			actuatorMotor->Set(ControlMode::PercentOutput, 0.0);
-			elevatorMasterMotor->Set(ControlMode::Position, 18000);
-		} else if(autonomousTimer->Get() < 14.0) {
+        if(center) {
+            if (runSwitch) {
+                if (switchposition_cl == 0) {
+                    if (autonomousTimer->Get() < 1.0) {
+                        actuatorMotor->Set(ControlMode::PercentOutput, -0.5);
+                    } else if (autonomousTimer->Get() < 2.0) {
+                        actuatorMotor->Set(ControlMode::PercentOutput, 0.0);
+                        elevatorMasterMotor->Set(ControlMode::Position, 18000);
+                    } else if (autonomousTimer->Get() < 15.0) {
+                        if (!doneDriving) {
+                            //Perhaps use time and motor drive percent instead of drive function?
+                            doneDriving = DRIVE_TO_DISTANCE(80);
+                            frc::Wait(0.05);
+                            if(doneDriving){
+                                doneDriving = false;
+                                doneTurning = TURN_TO_ANGLE(-90);
+                            }
+                            frc::Wait(0.05);
+                            if(doneTurning){
+                                doneTurning = false;
+                                doneDriving = DRIVE_TO_DISTANCE(120);
+                            }
+                            frc::Wait(0.05);
+                            if(doneDriving){
+                                doneDriving = false;
+                                doneTurning = TURN_TO_ANGLE(90);
+                            }
 
-		} else if(autonomousTimer->Get() < 15.0) {
+                            frc::Wait(0.05);
+                            if(doneTurning){
+                                doneTurning = false;
+                                doneDriving = DRIVE_TO_DISTANCE(110);
+                            }
 
-		} else {
+                            frc::Wait(0.05);
+                            if(doneDriving){
+                                doneDriving = false;
+                                doneTurning = TURN_TO_ANGLE(90);
+                            }
+                            frc::Wait(0.05);
+                            if(doneTurning){
+                                doneTurning = false;
+                                doneDriving = DRIVE_TO_DISTANCE(10);
+                            }
+                            frc::Wait(0.05);
+                        } else {
+                            leftMasterMotor->Set(ControlMode::PercentOutput, 0);
+                            rightMasterMotor->Set(ControlMode::PercentOutput, 0);
+                            intakeMasterMotor->Set(ControlMode::PercentOutput, 0.5);
+                        }
+                    }
+                } else if (switchposition_cl == 1) {
+                    //TODO
+                    if (autonomousTimer->Get() < 1.0) {
+                        actuatorMotor->Set(ControlMode::PercentOutput, -0.5);
+                    } else if (autonomousTimer->Get() < 2.0) {
+                        actuatorMotor->Set(ControlMode::PercentOutput, 0.0);
+                        elevatorMasterMotor->Set(ControlMode::Position, 18000);
+                    } else if (autonomousTimer->Get() < 15.0) {
+                        if (!doneDriving) {
+                            //Perhaps use time and motor drive percent instead of drive function?
+                            doneDriving = DRIVE_TO_DISTANCE(80);
+                            frc::Wait(0.05);
+                            if(doneDriving){
+                                doneDriving = false;
+                                doneTurning = TURN_TO_ANGLE(90);
+                            }
 
-		}
+                            frc::Wait(0.05);
+                            if(doneTurning){
+                                doneTurning = false;
+                                doneDriving = DRIVE_TO_DISTANCE(120);
+                            }
+                            frc::Wait(0.05);
+                            if(doneDriving){
+                                doneDriving = false;
+                                doneTurning = TURN_TO_ANGLE(-90);
+                            }
+                            frc::Wait(0.05);
+                            if(doneTurning){
+                                doneTurning = false;
+                                doneDriving = DRIVE_TO_DISTANCE(10);
+                            }
+                            frc::Wait(0.05);
+                            // ADD More
+                        } else {
+                            leftMasterMotor->Set(ControlMode::PercentOutput, 0);
+                            rightMasterMotor->Set(ControlMode::PercentOutput, 0);
+                            intakeMasterMotor->Set(ControlMode::PercentOutput, 0.5);
+                        }
+                    }
+                } else {
+                    // do nothing
+                }
+            }
+            if (left) {
+                if (runSwitch) {
+                    if (switchposition_cl == 0) {
+                        if (autonomousTimer->Get() < 1.0) {
+                            actuatorMotor->Set(ControlMode::PercentOutput, -0.5);
+                        } else if (autonomousTimer->Get() < 2.0) {
+                            actuatorMotor->Set(ControlMode::PercentOutput, 0.0);
+                            elevatorMasterMotor->Set(ControlMode::Position, 18000);
+                        } else if (autonomousTimer->Get() < 15.0) {
+                            if (!doneDriving) {
+                                //Perhaps use time and motor drive percent instead of drive function?
+
+                                doneDriving = DRIVE_TO_DISTANCE(165);
+                                frc::Wait(0.05);
+                                if(doneDriving){
+                                    doneDriving = false;
+                                    doneTurning = TURN_TO_ANGLE(-90);
+                                }
+                                frc::Wait(0.05);
+                                if(doneTurning){
+                                    doneTurning = false;
+                                    doneDriving = DRIVE_TO_DISTANCE(10);
+                                }
+                                frc::Wait(0.05);
+                                // ADD More
+                            } else {
+                                leftMasterMotor->Set(ControlMode::PercentOutput, 0);
+                                rightMasterMotor->Set(ControlMode::PercentOutput, 0);
+                                intakeMasterMotor->Set(ControlMode::PercentOutput, 0.5);
+                            }
+                        }
+                    } else if (switchposition_cl == 1) {
+                        if (autonomousTimer->Get() < 1.0) {
+                            actuatorMotor->Set(ControlMode::PercentOutput, -0.5);
+                        } else if (autonomousTimer->Get() < 2.0) {
+                            actuatorMotor->Set(ControlMode::PercentOutput, 0.0);
+                            elevatorMasterMotor->Set(ControlMode::Position, 18000);
+                        } else if (autonomousTimer->Get() < 15.0) {
+                            if (!doneDriving) {
+                                //Perhaps use time and motor drive percent instead of drive function?
+                                doneDriving = DRIVE_TO_DISTANCE(80);
+                                frc::Wait(0.05);
+                                if(doneDriving){
+                                    doneDriving = false;
+                                    doneTurning = TURN_TO_ANGLE(90);
+                                }
+
+                                frc::Wait(0.05);
+                                if(doneTurning){
+                                    doneTurning = false;
+                                    doneDriving = DRIVE_TO_DISTANCE(230);
+                                }
+
+                                frc::Wait(0.05);
+                                if(doneDriving){
+                                    doneDriving = false;
+                                    doneTurning = TURN_TO_ANGLE(-90);
+                                }
+                                frc::Wait(0.05);
+                                if(doneTurning){
+                                    doneTurning = false;
+                                    doneDriving - DRIVE_TO_DISTANCE(110);
+                                }
+
+                                frc::Wait(0.05);
+                                if(doneDriving){
+                                    doneDriving = false;
+                                    doneTurning = TURN_TO_ANGLE(-90);
+                                }
+                                frc::Wait(0.05);
+                                if(doneTurning){
+                                    doneTurning = false;
+                                    doneDriving = DRIVE_TO_DISTANCE(10);
+                                }
+                                frc::Wait(0.05);
+                            } else {
+                                leftMasterMotor->Set(ControlMode::PercentOutput, 0);
+                                rightMasterMotor->Set(ControlMode::PercentOutput, 0);
+                                intakeMasterMotor->Set(ControlMode::PercentOutput, 0.5);
+                            }
+                        }
+                    }
+                } else {
+                    runBaseline();
+                }
+            }
+            if (right) {
+                if (runSwitch) {
+                    if (switchposition_cl == 0) {
+                        if (autonomousTimer->Get() < 1.0) {
+                            actuatorMotor->Set(ControlMode::PercentOutput, -0.5);
+                        } else if (autonomousTimer->Get() < 2.0) {
+                            actuatorMotor->Set(ControlMode::PercentOutput, 0.0);
+                            elevatorMasterMotor->Set(ControlMode::Position, 18000);
+                        } else if (autonomousTimer->Get() < 15.0) {
+                            if (!doneDriving) {
+                                //Perhaps use time and motor drive percent instead of drive function?
+                                doneDriving = DRIVE_TO_DISTANCE(80);
+                                frc::Wait(0.05);
+                                if(doneDriving){
+                                    doneDriving = false;
+                                    doneTurning =  TURN_TO_ANGLE(-90);
+                                }
+
+                                frc::Wait(0.05);
+                                if(doneTurning){
+                                    doneTurning = false;
+                                    doneDriving = DRIVE_TO_DISTANCE(10);
+                                }
+                                frc::Wait(0.05);
+                            } else {
+                                leftMasterMotor->Set(ControlMode::PercentOutput, 0);
+                                rightMasterMotor->Set(ControlMode::PercentOutput, 0);
+                                intakeMasterMotor->Set(ControlMode::PercentOutput, 0.5);
+                            }
+                        }
+                    }
+                } else if (switchposition_cl == 1) {
+                    if (autonomousTimer->Get() < 1.0) {
+                        actuatorMotor->Set(ControlMode::PercentOutput, -0.5);
+                    } else if (autonomousTimer->Get() < 2.0) {
+                        actuatorMotor->Set(ControlMode::PercentOutput, 0.0);
+                        elevatorMasterMotor->Set(ControlMode::Position, 18000);
+                    } else if (autonomousTimer->Get() < 15.0) {
+                        if (!doneDriving) {
+                            //Perhaps use time and motor drive percent instead of drive function?
+                            doneDriving = DRIVE_TO_DISTANCE(80);
+                            frc::Wait(0.05);
+                            if(doneDriving){
+                                doneDriving = false;
+                                doneTurning = TURN_TO_ANGLE(-90);
+                            }
+                            frc::Wait(0.05);
+                            if(doneTurning){
+                                doneTurning = false;
+                                doneDriving =  DRIVE_TO_DISTANCE(230);
+                            }
+                            frc::Wait(0.05);
+                            if(doneDriving){
+                                doneDriving = false;
+                                doneTurning = TURN_TO_ANGLE(90);
+                            }
+                            frc::Wait(0.05);
+                            if(doneTurning){
+                                doneTurning = false;
+                                doneDriving = DRIVE_TO_DISTANCE(110);
+                            }
+
+                            frc::Wait(0.05);
+                            if(doneDriving){
+                                doneDriving = false;
+                                doneTurning = TURN_TO_ANGLE(90);
+                            }
+                            frc::Wait(0.05);
+                            if(doneTurning){
+                                doneTurning = false;
+                                doneDriving = DRIVE_TO_DISTANCE(10);
+                            }
+                            frc::Wait(0.05);
+                        } else {
+                            leftMasterMotor->Set(ControlMode::PercentOutput, 0);
+                            rightMasterMotor->Set(ControlMode::PercentOutput, 0);
+                            intakeMasterMotor->Set(ControlMode::PercentOutput, 0.5);
+                        }
+                    }
+                }
+            } else {
+                runBaseline();
+            }
+        }
 	}
-
-//			if(!doneDriving) {
-//				if(drivingParamTest) {
-//					DRIVE_PARAM_SET();
-//					Wait(0.5);
-//					leftMasterMotor->SetSelectedSensorPosition(0, 0, 10);
-//					rightMasterMotor->SetSelectedSensorPosition(0, 0, 10);
-//					drivingParamTest = false;
-//				} else if(!drivingParamTest) {
-//					doneDriving = DRIVE_TO_DISTANCE(130);
-//				}
-//			} else {
-//				leftMasterMotor->Set(ControlMode::PercentOutput, 0);
-//				rightMasterMotor->Set(ControlMode::PercentOutput, 0);
-//			}
-//			} else if(doneDriving && !doneTurning){
-//				if(turningParamTest) {
-//					TURN_PARAM_SET();
-//					Wait(0.5);
-//					turningParamTest = false;
-//				} else if (!turningParamTest) {
-//					doneTurning = TURN_TO_ANGLE(Segments[driveState].ANGLE);
-//				}
-//			}
-//				doneTurning = TURN_TO_ANGLE(90);
-//			} else if (doneDriving && doneTurning) {
-//				elevatorMasterMotor->Set(ControlMode::Position, 18000);
-//			}
-//			if(autonomousTimer->Get() > 14.0) {
-//				intakeMasterMotor->Set(ControlMode::PercentOutput, -0.5);
-//			}
-//
-//		//Selection based on switch position, or robotic position.
-//		//isTracking will need to be retrieved from networktables.
-//		//Time and Ultrasonic Distance will need to be sent to Jeff.
-//		if(autonomousTimer->Get() <= 0.75) {
-//			actuatorMotor->Set(ControlMode::PercentOutput, 0.25);
-//		} else if (autonomousTimer->Get() <= 1.5) {
-//			elevatorMasterMotor->Set(ControlMode::Position, 2000);
-//		} else if (autonomousTimer->Get() <= 15.0) {
-//			elevatorMasterMotor->Set(ControlMode::PercentOutput, 0);
-//			elevatorMasterMotor->Set(ControlMode::PercentOutput, 0);
-//			if(driveState <= 5) {
-//				if(!doneDriving) {
-//					//The below state checker should only set the turn PID parameters once only.
-//					if(drivingParamTest) {
-//						DRIVE_PARAM_SET();
-//						Wait(0.5);
-//						leftMasterMotor->SetSelectedSensorPosition(0, 0, 10);
-//						rightMasterMotor->SetSelectedSensorPosition(0, 0, 10);
-//						drivingParamTest = false;
-//					} else if(!drivingParamTest) {
-//						doneDriving = DRIVE_TO_DISTANCE(Segments[driveState].DIST);
-//						SmartDashboard::PutNumber("Current Distance", Segments[driveState].DIST);
-//						SmartDashboard::PutNumber("Current Angle", Segments[driveState].ANGLE);
-//						SmartDashboard::PutString("Control State", "Moving Forward!");
-//						SmartDashboard::PutString("Turning State?", "Not Turning!");
-//						SmartDashboard::PutBoolean("Driving State", doneDriving);
-//						SmartDashboard::PutBoolean("Turning State", driveState);
-//					}
-//				} else if (doneDriving && !doneTurning) {
-//					if(turningParamTest) {
-//						TURN_PARAM_SET();
-//						Wait(0.5);
-//						turningParamTest = false;
-//					} else if (!turningParamTest) {
-//						doneTurning = TURN_TO_ANGLE(Segments[driveState].ANGLE);
-//						SmartDashboard::PutNumber("Current Distance", Segments[driveState].DIST);
-//						SmartDashboard::PutNumber("Current Angle", Segments[driveState].ANGLE);
-//						SmartDashboard::PutString("Control State", "Not Moving Forward!");
-//						SmartDashboard::PutString("Control State", "Turning!");
-//						SmartDashboard::PutBoolean("Driving State", doneDriving);
-//						SmartDashboard::PutBoolean("Turning State", driveState);
-//					}
-//				} else if(doneDriving && doneTurning) {
-//					driveState ++;
-//					leftMasterMotor->SetSelectedSensorPosition(0, 0, 10);
-//					rightMasterMotor->SetSelectedSensorPosition(0, 0, 10);
-//					SmartDashboard::PutNumber("Completed Segment:", driveState);
-//					SmartDashboard::PutBoolean("Driving State", doneDriving);
-//					SmartDashboard::PutBoolean("Turning State", driveState);
-//					turningParamTest = true;
-//					drivingParamTest = true;
-//					doneDriving = false;
-//					doneTurning = false;
-//				}
-//			} else if(driveState > 5) {
-//					leftMasterMotor->Set(ControlMode::PercentOutput, 0);
-//					rightMasterMotor->Set(ControlMode::PercentOutput, 0);
-//					if(autonomousTimer->Get() < 14.0) {
-//						elevatorMasterMotor->Set(ControlMode::Position, 2000);
-//					} else if(autonomousTimer->Get() < 15.0) {
-//						intakeMasterMotor->Set(ControlMode::PercentOutput, -0.5);
-//
-//					}
-//			}
-//		}
 
 	void TeleopInit() {
 		autonomousTimer->Stop();
