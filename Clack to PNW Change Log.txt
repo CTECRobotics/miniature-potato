@@ -1,0 +1,39 @@
+Post Clackamas to Pre PNW Changelog
+
+ - Variable cleanup
+  - Removal of extraneous variables.
+  - Removal of some extraneous variables.
+   - Removal of relevant assets.
+   - fieldPos
+   - autoMode
+   - driveParamSetState
+   - driveParamSetState 
+   - secondaryTimer
+   - isDriveState
+   - isTurnState
+  - Renaming of some variables for clarity
+   - failure -> NAVXFailure
+   - errorString -> NAVXErrorString
+  - Addition of some variables.
+   - 
+
+ - Feature Removal
+  - Removal of softlimits.
+   - Removal of relevant functions.
+  - Removal of drive motor PID settings.
+   - Removal of relevant functions.
+  - Removal of autonomous.
+   - Removal of relevant functions.
+   - Removal of parameter setting logic.
+   - Relevant code has been moved to another file, PrePNWAutonomous.
+
+ - Feature Additions
+  - No changes made.
+
+ - General
+  - Comments added for clarity.
+  - Rearranging of variables for clarity.
+
+ - Version Control
+  - Verion Updated to PNW-1.5 from 1.0.
+  - Competition ready.
